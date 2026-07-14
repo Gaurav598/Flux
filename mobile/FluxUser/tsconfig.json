@@ -1,0 +1,16 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "react",
+      "react-native",
+      "jest"
+    ],
+    "strict": true
+  },
+  "include": [
+    "src",
+    "env.d.ts",
+    "nativewind-env.d.ts"
+  ]
+}

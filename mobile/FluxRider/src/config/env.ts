@@ -1,0 +1,10 @@
+// Environment configuration for FluxRider
+import {
+  API_BASE_URL as API_URL_ENV,
+  SOCKET_URL as SOCKET_URL_ENV,
+  GOOGLE_PLACES_API_KEY as GOOGLE_API_KEY_ENV,
+} from '@env';
+
+export const API_BASE_URL = API_URL_ENV;
+export const SOCKET_URL = SOCKET_URL_ENV;
+export const GOOGLE_PLACES_API_KEY = GOOGLE_API_KEY_ENV;

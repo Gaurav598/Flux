@@ -1,0 +1,151 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ─── Stage 1: Build ───────────────────────────────────────────────────────
+  build:
+    name: 1. Build (Compile)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
+      - name: Build with Gradle (skip tests)
+        working-directory: ./backend
+        run: gradle build -x test --no-daemon
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/build/libs/*.jar
+          retention-days: 1
+
+  # ─── Stage 2: Dockerize ───────────────────────────────────────────────────
+  dockerize:
+    name: 2. Dockerize (Build & Push Image)
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/build/libs/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/flux-backend:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/flux-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/flux-backend:buildcache,mode=max
+
+  # ─── Stage 3: Deploy ──────────────────────────────────────────────────────
+  deploy:
+    name: 3. Deploy (EC2 Production)
+    runs-on: ubuntu-latest
+    needs: [dockerize]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          # copy to the SSH user's home directory first (no sudo required for scp)
+          target: "/home/${{ secrets.PRODUCTION_USER }}/docker-compose.yml"
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: PRODUCTION_ENV_FILE,FIREBASE_SERVICE_ACCOUNT_JSON
+          script: |
+            set -euo pipefail
+
+            sudo mkdir -p /opt/flux
+            cd /opt/flux
+
+            # Move docker-compose.yml into the app directory (scp copied it to user's home)
+            if [ -f "/home/${{ secrets.PRODUCTION_USER }}/docker-compose.yml" ]; then
+              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/docker-compose.yml" ./docker-compose.yml || true
+            fi
+
+            # Write the .env file from GitHub Secret
+            echo "$PRODUCTION_ENV_FILE" | sudo tee .env > /dev/null
+
+            # Write the Firebase service account JSON from GitHub Secret
+            echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | sudo tee firebase-service-account.json > /dev/null
+
+            # Login to Docker Hub on the server (needed if image is private)
+            if [ -n "${DOCKER_USERNAME:-}" ] && [ -n "${DOCKER_PASSWORD:-}" ]; then
+              echo "Logging in to Docker Hub as $DOCKER_USERNAME"
+              echo "$DOCKER_PASSWORD" | sudo docker login -u "$DOCKER_USERNAME" --password-stdin || true
+            else
+              echo "DOCKER_USERNAME/DOCKER_PASSWORD not provided; attempting anonymous pull"
+            fi
+
+            # Choose compose command depending on what's available on the server
+            if sudo docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="sudo docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE_CMD="sudo docker-compose"
+            else
+              echo "No docker compose command found on server"; exit 1
+            fi
+
+            echo "Using compose command: $COMPOSE_CMD"
+
+            # Pull latest image for backend and force recreate to ensure new image is used
+            $COMPOSE_CMD pull backend || { echo "docker pull failed"; $COMPOSE_CMD images; exit 1; }
+            $COMPOSE_CMD up -d --force-recreate backend || { echo "docker compose up failed"; $COMPOSE_CMD logs backend --tail=200 || true; exit 1; }
+
+            # Optionally restart other services (uncomment if needed)
+            # $COMPOSE_CMD up -d --force-recreate
+
+            # Clean up old images to save disk space
+            sudo docker system prune -f || true

@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: flux-backend
+  
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:flux}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: flux-group
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 7776000000
+  refresh-expiration: 15552000000
+
+
+stripe:
+  api-key: ${STRIPE_API_KEY:disabled}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:disabled}
+  subscription-price-id: ${STRIPE_SUBSCRIPTION_PRICE_ID:disabled}
+
+aws:
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  s3:
+    bucket: ${AWS_S3_BUCKET:flux-documents}
+    region: ${AWS_REGION:us-east-1}
+
+google:
+  maps:
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+
+firebase:
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+
+app:
+  bidding:
+    window-seconds: 45
+    min-bid: 40
+    max-bid: 500
+  subscription:
+    amount: 500
+    grace-period-days: 3

@@ -1,0 +1,79 @@
+# Environment files — NEVER commit these
+.env
+*.env
+.env.local
+.env.development
+.env.production
+backend/.env
+
+
+# Build outputs
+backend/build/
+backend/.gradle/
+*.jar
+*.class
+
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.suo
+*.user
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+vendor/
+
+# Explicitly include mobile app source despite local .gitignore
+!mobile/FluxUser/src/
+!mobile/FluxRider/src/
+!mobile/FluxUser/package.json
+!mobile/FluxRider/package.json
+!mobile/FluxUser/android/
+!mobile/FluxRider/android/
+!mobile/FluxUser/ios/
+!mobile/FluxRider/ios/
+
+
+# Sensitive files
+.env
+google-services.json
+client_secret_*.json
+firebase-service-account.json
+*.keystore
+*.jks
+local.properties
+
+# Build artifacts
+build/
+*.jar
+*.apk
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.DS_Store
+
+# IDE settings
+.vscode/
+.idea/
+
+APK/
+Pods/
+DerivedData/
+*.aab
+dist/
+coverage/
