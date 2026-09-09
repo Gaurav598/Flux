@@ -43,7 +43,7 @@ jobs:
     name: 2. Dockerize (Build & Push Image)
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.DOCKER_USERNAME != ''
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,7 +77,7 @@ jobs:
     name: 3. Deploy (EC2 Production)
     runs-on: ubuntu-latest
     needs: [dockerize]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.PRODUCTION_HOST != ''
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

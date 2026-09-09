@@ -60,7 +60,7 @@ services:
       - flux-network
 
   backend:
-    image: $${{ secrets.DOCKER_USERNAME }}/flux-backend:latest
+    build: ./backend
     container_name: flux-backend
     ports:
       - "8080:8080"
@@ -75,6 +75,24 @@ services:
       - postgres
       - redis
       - kafka
+    networks:
+      - flux-network
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    container_name: flux-dashboard
+    ports:
+      - "3000:80"
+    networks:
+      - flux-network
+    restart: unless-stopped
+
+  admin-dashboard:
+    build: ./admin-dashboard
+    container_name: flux-admin-dashboard
+    ports:
+      - "3001:80"
     networks:
       - flux-network
     restart: unless-stopped
