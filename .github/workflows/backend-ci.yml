@@ -103,7 +103,7 @@ jobs:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: PRODUCTION_ENV_FILE,FIREBASE_SERVICE_ACCOUNT_JSON
+          envs: PRODUCTION_ENV_FILE,FIREBASE_SERVICE_ACCOUNT_JSON,DOCKER_USERNAME,DOCKER_PASSWORD
           script: |
             set -euo pipefail
 
@@ -128,6 +128,7 @@ jobs:
 
             # Write the .env file from GitHub Secret
             echo "$PRODUCTION_ENV_FILE" | sudo tee .env > /dev/null
+            echo "DOCKER_USERNAME=$DOCKER_USERNAME" | sudo tee -a .env > /dev/null
 
             # Write the Firebase service account JSON from GitHub Secret
             echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | sudo tee firebase-service-account.json > /dev/null
