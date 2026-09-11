@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
+import MapView, {Marker, PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
 import {
   Phone,
   MessageCircle,
@@ -229,6 +229,11 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}>
+        <UrlTile
+          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+          maximumZ={19}
+          flipY={false}
+        />
         {riderLocation && (
           <ApproachingVehicleMarker
             coordinate={riderLocation}

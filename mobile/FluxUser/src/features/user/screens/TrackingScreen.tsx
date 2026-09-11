@@ -16,7 +16,8 @@ import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
-  Polyline
+  Polyline,
+  UrlTile
 } from 'react-native-maps';
 import {getDrivingRoute} from '../../../services/directionsService';
 import {getRideDetails, cancelRide} from '../../../services/rideService';
@@ -349,6 +350,11 @@ export default function TrackingScreen() {
           showsUserLocation={false}
           showsMyLocationButton={false}
           toolbarEnabled={false}>
+          <UrlTile
+            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+            maximumZ={19}
+            flipY={false}
+          />
           <ApproachingVehicleMarker
             coordinate={mapCenter}
             vehicleId={vehicleId}

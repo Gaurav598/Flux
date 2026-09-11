@@ -9,7 +9,7 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
+import MapView, {Marker, PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
 import {getDrivingRoute} from '../../../services/directionsService';
 import {VEHICLE_TYPES} from '../../../data/mockData';
 import {ArrowLeft, Navigation, Clock} from 'lucide-react-native';
@@ -86,6 +86,11 @@ const SelectRideScreen = ({navigation, route}: any) => {
                 Math.abs(pickupCoords.longitude - dropCoords.longitude) * 1.8,
             }}
             customMapStyle={darkMapStyle}>
+            <UrlTile
+              urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
             <Marker coordinate={pickupCoords} title="Pickup">
               <View style={styles.pickupMarker}>
                 <View style={styles.pickupMarkerDot} />
