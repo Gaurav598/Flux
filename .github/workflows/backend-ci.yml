@@ -107,6 +107,15 @@ jobs:
           script: |
             set -euo pipefail
 
+            # Automatically install Docker and Docker Compose if not installed
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Docker not found. Installing Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+              rm get-docker.sh
+            fi
+
             sudo mkdir -p /opt/flux
             cd /opt/flux
 
