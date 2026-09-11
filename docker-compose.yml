@@ -69,6 +69,9 @@ services:
     environment:
       FIREBASE_CREDENTIALS_PATH: /opt/flux/firebase-service-account.json
       FIREBASE_API_KEY: ${FIREBASE_API_KEY}
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_SERVERS: kafka:9092
     volumes:
       - ./firebase-service-account.json:/opt/flux/firebase-service-account.json
     depends_on:

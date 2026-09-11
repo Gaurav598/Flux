@@ -21,7 +21,7 @@ public class FileUploadService {
     @Value("${aws.s3.bucket}")
     private String bucketName;
 
-    @Value("${aws.region}")
+    @Value("${aws.s3.region}")
     private String region;
 
     private AmazonS3 s3Client;
