@@ -89,8 +89,8 @@ jobs:
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "docker-compose.yml"
-          # copy to the SSH user's home directory first (no sudo required for scp)
-          target: "/home/${{ secrets.PRODUCTION_USER }}"
+          # copy to a temporary directory in the SSH user's home (no sudo required)
+          target: "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp"
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.0
@@ -119,10 +119,12 @@ jobs:
             sudo mkdir -p /opt/flux
             cd /opt/flux
 
-            # Move docker-compose.yml into the app directory (scp copied it to user's home)
-            if [ -f "/home/${{ secrets.PRODUCTION_USER }}/docker-compose.yml" ]; then
-              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/docker-compose.yml" ./docker-compose.yml || true
+            # Move docker-compose.yml into the app directory
+            if [ -f "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.yml" ]; then
+              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.yml" ./docker-compose.yml || true
             fi
+            # Clean up the temporary directory
+            rm -rf "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp" || true
 
             # Write the .env file from GitHub Secret
             echo "$PRODUCTION_ENV_FILE" | sudo tee .env > /dev/null
