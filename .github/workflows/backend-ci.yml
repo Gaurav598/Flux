@@ -88,7 +88,7 @@ jobs:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.yml"
+          source: "docker-compose.prod.yml"
           # copy to a temporary directory in the SSH user's home (no sudo required)
           target: "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp"
 
@@ -119,9 +119,9 @@ jobs:
             sudo mkdir -p /opt/flux
             cd /opt/flux
 
-            # Move docker-compose.yml into the app directory
-            if [ -f "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.yml" ]; then
-              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.yml" ./docker-compose.yml || true
+            # Move docker-compose.prod.yml into the app directory as docker-compose.yml
+            if [ -f "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.prod.yml" ]; then
+              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.prod.yml" ./docker-compose.yml || true
             fi
             # Clean up the temporary directory
             rm -rf "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp" || true
