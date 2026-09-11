@@ -10,8 +10,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
+import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
 import {
   Phone,
   MessageCircle,
@@ -22,7 +21,7 @@ import {
   AlertCircle,
 } from 'lucide-react-native';
 import api from '../config/api';
-import {GOOGLE_PLACES_API_KEY} from '../config/env';
+import {getDrivingRoute} from '../services/directionsService';
 import {colors, darkMapStyle, normalizeVehicleId} from '../theme';
 import {
   ApproachingVehicleMarker,
@@ -39,6 +38,7 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
   const [otp, setOtp] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [routeCoords, setRouteCoords] = useState<any[]>([]);
 
   const fetchBookingDetails = useCallback(async () => {
     try {
@@ -108,6 +108,24 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
           left: 55,
         },
         animated: true,
+      });
+    }
+
+    if (riderLocation && booking.pickupLatitude && booking.pickupLongitude) {
+      getDrivingRoute(
+        riderLocation,
+        {
+          latitude: booking.pickupLatitude,
+          longitude: booking.pickupLongitude,
+        },
+      ).then(res => {
+        if (res) {
+          if (res.coordinates) setRouteCoords(res.coordinates);
+          if (res.durationMin) {
+            const minutes = Math.ceil(res.durationMin);
+            setEta(`${minutes} min${minutes !== 1 ? 's' : ''}`);
+          }
+        }
       });
     }
   }, [booking, riderLocation, windowHeight]);
@@ -229,20 +247,11 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
           }}
         />
 
-        {riderLocation && (
-          <MapViewDirections
-            origin={riderLocation}
-            destination={{
-              latitude: booking.pickupLatitude,
-              longitude: booking.pickupLongitude,
-            }}
-            apikey={GOOGLE_PLACES_API_KEY}
+        {routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
             strokeWidth={4}
             strokeColor={colors.accent}
-            onReady={result => {
-              const minutes = Math.ceil(result.duration);
-              setEta(`${minutes} min${minutes !== 1 ? 's' : ''}`);
-            }}
           />
         )}
       </MapView>

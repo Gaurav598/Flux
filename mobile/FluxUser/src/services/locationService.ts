@@ -1,7 +1,7 @@
 import Geolocation from 'react-native-geolocation-service';
 import {Alert, Linking, PermissionsAndroid, Platform} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {GOOGLE_PLACES_API_KEY} from '../config/env';
+import {LOCATION_IQ_API_KEY} from '../config/env';
 export interface Location {
   latitude: number;
   longitude: number;
@@ -263,22 +263,17 @@ export const reverseGeocode = async (
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_PLACES_API_KEY}`,
+      `https://us1.locationiq.com/v1/reverse.php?key=${LOCATION_IQ_API_KEY}&lat=${latitude}&lon=${longitude}&format=json`,
       controller ? {signal: controller.signal} : undefined,
     );
     const data = await response.json();
-    if (data.status === 'OK' && data.results.length > 0) {
-      const components = data.results[0].address_components as any[];
-      const sub = components.find(
-        (c: any) =>
-          c.types.includes('sublocality_level_1') ||
-          c.types.includes('neighborhood'),
-      );
-      const city = components.find((c: any) => c.types.includes('locality'));
+    if (data && data.address) {
+      const sub = data.address.suburb || data.address.neighbourhood;
+      const city = data.address.city || data.address.town || data.address.county;
       if (sub && city) {
-        return `${sub.long_name}, ${city.long_name}`;
+        return `${sub}, ${city}`;
       }
-      return data.results[0].formatted_address
+      return data.display_name
         .split(',')
         .slice(0, 2)
         .join(',')

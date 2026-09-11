@@ -11,8 +11,7 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
+import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import api from '../config/api';
 import {colors, darkMapStyle, normalizeVehicleId} from '../theme';
@@ -20,7 +19,7 @@ import {
   ApproachingVehicleMarker,
   UserLocationMarker,
 } from '../components/MapMarkers';
-import {GOOGLE_PLACES_API_KEY} from '../config/env';
+import {getDrivingRoute} from '../services/directionsService';
 import CardGradient from '../components/CardGradient';
 import {
   clearLocationWatch,
@@ -80,6 +79,7 @@ const RideTrackingScreen = () => {
     'ACCEPTED' | 'RIDER_EN_ROUTE' | 'RIDER_ARRIVED' | 'IN_PROGRESS' | 'COMPLETED'
   >('ACCEPTED');
   const [loading, setLoading] = useState(false);
+  const [routeCoords, setRouteCoords] = useState<any[]>([]);
 
   const asCoordinate = (value: unknown, fallback: number) => {
     const num = Number(value);
@@ -364,8 +364,17 @@ const RideTrackingScreen = () => {
     hasValidCoordinate(currentLocation.latitude) &&
     hasValidCoordinate(currentLocation.longitude) &&
     hasValidCoordinate(destination.latitude) &&
-    hasValidCoordinate(destination.longitude) &&
-    Boolean(GOOGLE_PLACES_API_KEY);
+    hasValidCoordinate(destination.longitude);
+
+  useEffect(() => {
+    if (canRenderDirections && currentLocation && destination) {
+      getDrivingRoute(currentLocation, destination).then(res => {
+        if (res && res.coordinates) {
+          setRouteCoords(res.coordinates);
+        }
+      });
+    }
+  }, [currentLocation, destination, canRenderDirections]);
 
   return (
     <View style={styles.container}>
@@ -424,14 +433,11 @@ const RideTrackingScreen = () => {
           </Marker>
         )}
 
-        {canRenderDirections && (
-          <MapViewDirections
-            origin={currentLocation}
-            destination={destination}
-            apikey={GOOGLE_PLACES_API_KEY}
+        {canRenderDirections && routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
             strokeWidth={4}
             strokeColor={colors.accent}
-            onError={error => console.log('Directions error:', error)}
           />
         )}
       </MapView>

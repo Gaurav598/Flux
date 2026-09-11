@@ -9,9 +9,8 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
-import {GOOGLE_PLACES_API_KEY} from '../../../config/env';
+import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
+import {getDrivingRoute} from '../../../services/directionsService';
 import {VEHICLE_TYPES} from '../../../data/mockData';
 import {ArrowLeft, Navigation, Clock} from 'lucide-react-native';
 import {colors, darkMapStyle, getVehicleImage} from '../../../theme';
@@ -32,6 +31,18 @@ const PARCEL_VEHICLE = {
 const SelectRideScreen = ({navigation, route}: any) => {
   const {pickup, drop, distanceKm, pickupCoords, dropCoords, vehicle} =
     route.params;
+
+  const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (pickupCoords && dropCoords) {
+      getDrivingRoute(pickupCoords, dropCoords).then(res => {
+        if (res && res.coordinates) {
+          setRouteCoords(res.coordinates);
+        }
+      });
+    }
+  }, [pickupCoords, dropCoords]);
 
   const selectedVehicle = useMemo(() => {
     if (vehicle?.id) {
@@ -85,14 +96,13 @@ const SelectRideScreen = ({navigation, route}: any) => {
                 <View style={styles.dropMarkerDot} />
               </View>
             </Marker>
-            <MapViewDirections
-              origin={pickupCoords}
-              destination={dropCoords}
-              apikey={GOOGLE_PLACES_API_KEY}
-              strokeWidth={5}
-              strokeColor={colors.accent}
-              optimizeWaypoints={true}
-            />
+            {routeCoords.length > 0 && (
+              <Polyline
+                coordinates={routeCoords}
+                strokeWidth={5}
+                strokeColor={colors.accent}
+              />
+            )}
           </MapView>
         ) : (
           <View style={styles.loaderContainer}>

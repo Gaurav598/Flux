@@ -12,11 +12,10 @@ import {
   Animated,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
+import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import api from '../config/api';
-import {GOOGLE_PLACES_API_KEY} from '../config/env';
+import {getDrivingRoute} from '../services/directionsService';
 import {
   Phone,
   MapPin,
@@ -66,6 +65,7 @@ const ActiveBookingScreen = () => {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [userOtp, setUserOtp] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [routeCoords, setRouteCoords] = useState<any[]>([]);
   const animatedLatitude = useRef(new Animated.Value(0)).current;
   const animatedLongitude = useRef(new Animated.Value(0)).current;
   const cancelledHandled = useRef(false);
@@ -239,6 +239,39 @@ const ActiveBookingScreen = () => {
     }
   }, [booking, windowHeight]);
 
+  useEffect(() => {
+    if (booking && booking.rider) {
+      const riderLocation = {
+        latitude: booking.rider.currentLatitude || booking.pickupLatitude,
+        longitude: booking.rider.currentLongitude || booking.pickupLongitude,
+      };
+      const destination =
+        booking.status === 'IN_PROGRESS'
+          ? {
+              latitude: booking.dropLatitude,
+              longitude: booking.dropLongitude,
+            }
+          : {
+              latitude: booking.pickupLatitude,
+              longitude: booking.pickupLongitude,
+            };
+            
+      getDrivingRoute(riderLocation, destination).then(res => {
+        if (res && res.coordinates) {
+          setRouteCoords(res.coordinates);
+        }
+      });
+    }
+  }, [
+    booking?.status,
+    booking?.rider?.currentLatitude,
+    booking?.rider?.currentLongitude,
+    booking?.pickupLatitude,
+    booking?.pickupLongitude,
+    booking?.dropLatitude,
+    booking?.dropLongitude,
+  ]);
+
   const handleCallRider = () => {
     if (booking?.rider?.user?.mobileNumber) {
       Linking.openURL(`tel:${booking.rider.user.mobileNumber}`);
@@ -382,24 +415,13 @@ const ActiveBookingScreen = () => {
             </Marker>
           )}
 
-        <MapViewDirections
-          origin={riderLocation}
-          destination={
-            booking.status === 'IN_PROGRESS'
-              ? {
-                  latitude: booking.dropLatitude,
-                  longitude: booking.dropLongitude,
-                }
-              : {
-                  latitude: booking.pickupLatitude,
-                  longitude: booking.pickupLongitude,
-                }
-          }
-          apikey={GOOGLE_PLACES_API_KEY}
-          strokeWidth={4}
-          strokeColor={colors.accent}
-          onError={error => console.log('Directions error:', error)}
-        />
+        {routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={4}
+            strokeColor={colors.accent}
+          />
+        )}
       </MapView>
 
       <ScrollView
