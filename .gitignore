@@ -45,6 +45,15 @@ vendor/
 !mobile/FluxUser/ios/
 !mobile/FluxRider/ios/
 
+# Re-ignore generated android build folders
+mobile/FluxUser/android/app/build/
+mobile/FluxUser/android/app/.cxx/
+mobile/FluxUser/android/.gradle/
+mobile/FluxUser/android/build/
+mobile/FluxRider/android/app/build/
+mobile/FluxRider/android/app/.cxx/
+mobile/FluxRider/android/.gradle/
+mobile/FluxRider/android/build/
 
 # Sensitive files
 .env
@@ -77,3 +86,4 @@ DerivedData/
 *.aab
 dist/
 coverage/
+flux-production-key.pem
