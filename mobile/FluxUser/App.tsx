@@ -26,7 +26,7 @@ const RootGate = () => {
     return (
       <View style={styles.splashContainer}>
         <ImageBackground
-          source={require('./screen-load.png')}
+          source={require('./screen-load.jpg')}
           style={styles.splashImage}
           imageStyle={styles.splashImage}
           resizeMode="cover"
