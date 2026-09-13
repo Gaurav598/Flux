@@ -148,10 +148,11 @@ const LoginScreen = () => {
       if (error.code === 'ERR_NETWORK' || !error.response) {
         Alert.alert(
           'Network Error',
-          'Cannot connect to the server. Please check your internet connection or try again later.',
+          `Cannot connect to the server. ${error.message}`,
         );
       } else {
-        Alert.alert('Error', error.response?.data?.message || 'Login failed');
+        const errData = error.response?.data;
+        Alert.alert('Error', errData?.message || JSON.stringify(errData) || 'Login failed');
       }
     } finally {
       setLoadingState(false);
