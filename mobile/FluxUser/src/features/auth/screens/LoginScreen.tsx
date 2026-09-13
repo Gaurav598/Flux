@@ -148,7 +148,7 @@ const LoginScreen = () => {
       if (error.code === 'ERR_NETWORK' || !error.response) {
         Alert.alert(
           'Network Error',
-          `Cannot connect to server at ${API_BASE_URL}.`,
+          'Cannot connect to the server. Please check your internet connection or try again later.',
         );
       } else {
         Alert.alert('Error', error.response?.data?.message || 'Login failed');
