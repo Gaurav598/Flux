@@ -11,13 +11,11 @@ export default function BookingsPage() {
   const { data: bookings, isLoading } = useQuery({
     queryKey: ['bookings', statusFilter, searchQuery],
     queryFn: () => adminApi.getBookings({ status: statusFilter, search: searchQuery }),
-    refetchInterval: 30000, // 30 seconds auto-refresh
   });
 
   const getStatusBadge = (status: string) => {
     const styles = {
       PENDING: 'bg-brand-400/10 text-brand-300 border border-brand-400/20',
-      BIDDING: 'bg-orange-400/10 text-orange-300 border border-orange-400/20',
       ACCEPTED: 'bg-sky-400/10 text-sky-300 border border-sky-400/20',
       RIDER_ARRIVED: 'bg-violet-400/10 text-violet-300 border border-violet-400/20',
       IN_PROGRESS: 'bg-indigo-400/10 text-indigo-300 border border-indigo-400/20',
@@ -54,7 +52,6 @@ export default function BookingsPage() {
             >
               <option value="">All Status</option>
               <option value="PENDING">Pending</option>
-              <option value="BIDDING">Bidding</option>
               <option value="ACCEPTED">Accepted</option>
               <option value="RIDER_ARRIVED">Rider Arrived</option>
               <option value="IN_PROGRESS">In Progress</option>
@@ -106,7 +103,7 @@ export default function BookingsPage() {
                       <MapPin className="w-4 h-4 text-zinc-500 mt-1 flex-shrink-0" />
                       <div className="text-sm text-zinc-200">
                         <div className="truncate">{booking.pickupAddress?.substring(0, 30)}...</div>
-                        <div className="truncate text-zinc-500">to {booking.dropAddress?.substring(0, 30)}...</div>
+                        <div className="truncate text-zinc-500">to {booking.dropoffAddress?.substring(0, 30)}...</div>
                       </div>
                     </div>
                   </td>

@@ -13,6 +13,7 @@ import {
 import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
 import {
   colors,
+  darkMapStyle as _darkMapStyle,
   getVehicleImage,
   normalizeVehicleId,
 } from '../theme';
