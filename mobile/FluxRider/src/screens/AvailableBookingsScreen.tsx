@@ -10,10 +10,9 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE, Polyline} from 'react-native-maps';
+import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
 import {
   colors,
-  darkMapStyle,
   getVehicleImage,
   normalizeVehicleId,
 } from '../theme';
@@ -343,15 +342,21 @@ const AvailableBookingsScreen = ({navigation}: any) => {
       {/* Map Background */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         style={styles.map}
-        customMapStyle={darkMapStyle}
         initialRegion={{
           latitude: currentBooking.pickupLocation.latitude,
           longitude: currentBooking.pickupLocation.longitude,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}>
+        {/* CartoDB Dark Matter tiles — no API key required */}
+        <UrlTile
+          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+          maximumZ={19}
+          flipY={false}
+          zIndex={-1}
+        />
         <Polyline
           coordinates={[
             {

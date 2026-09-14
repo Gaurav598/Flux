@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
 import {
   Phone,
   MessageCircle,
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react-native';
 import api from '../config/api';
 import {getDrivingRoute} from '../services/directionsService';
-import {colors, darkMapStyle, normalizeVehicleId} from '../theme';
+import {colors, normalizeVehicleId} from '../theme';
 import {
   ApproachingVehicleMarker,
   UserLocationMarker,
@@ -219,10 +219,8 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         style={styles.map}
-        customMapStyle={darkMapStyle}
-        userInterfaceStyle="dark"
         initialRegion={{
           latitude: booking.pickupLatitude,
           longitude: booking.pickupLongitude,
@@ -230,9 +228,10 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
           longitudeDelta: 0.05,
         }}>
         <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
           maximumZ={19}
           flipY={false}
+          zIndex={-1}
         />
         {riderLocation && (
           <ApproachingVehicleMarker

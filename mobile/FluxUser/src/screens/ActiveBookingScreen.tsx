@@ -11,7 +11,7 @@ import {
   Animated,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import api from '../config/api';
 import {getDrivingRoute} from '../services/directionsService';
@@ -24,7 +24,7 @@ import {
   Star,
   CheckCircle,
 } from 'lucide-react-native';
-import {colors, darkMapStyle, normalizeVehicleId} from '../theme';
+import {colors, normalizeVehicleId} from '../theme';
 import {ApproachingVehicleMarker, UserLocationMarker} from '../components/MapMarkers';
 import CardGradient from '../components/CardGradient';
 
@@ -374,10 +374,8 @@ const ActiveBookingScreen = () => {
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         style={styles.map}
-        customMapStyle={darkMapStyle}
-        userInterfaceStyle="dark"
         initialRegion={{
           latitude: booking.pickupLatitude,
           longitude: booking.pickupLongitude,
@@ -385,9 +383,10 @@ const ActiveBookingScreen = () => {
           longitudeDelta: 0.05,
         }}>
         <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
           maximumZ={19}
           flipY={false}
+          zIndex={-1}
         />
         <ApproachingVehicleMarker
           coordinate={riderLocation}

@@ -183,10 +183,15 @@ public class AdminController {
             @RequestParam(required = false, defaultValue = "7") int days) {
         try {
             Map<String, Object> analytics = new HashMap<>();
-            analytics.put("totalBookings", bookingService.getTotalBookingsToday());
+            // All-time counts
+            analytics.put("totalBookings", bookingService.getTotalBookingCount());
             analytics.put("totalRevenue", paymentService.getTotalRevenueToday());
             analytics.put("activeRiders", riderService.getRiderCountByStatus(RiderStatus.ACTIVE));
             analytics.put("totalUsers", userService.getTotalUserCount());
+            analytics.put("totalRiders", userService.getUserCountByRole(com.flux.model.enums.UserRole.RIDER));
+            // Today's stats
+            analytics.put("todayBookings", bookingService.getTotalBookingsToday());
+            analytics.put("pendingRiders", riderService.getRiderCountByStatus(RiderStatus.PENDING));
             return ResponseEntity.ok(analytics);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

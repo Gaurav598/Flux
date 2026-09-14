@@ -14,7 +14,7 @@ import {
   Image,
   StatusBar,
 } from 'react-native';
-import MapView, {Circle, Marker, PROVIDER_GOOGLE} from 'react-native-maps';
+import MapView, {Circle, Marker, PROVIDER_DEFAULT, UrlTile} from 'react-native-maps';
 import {useSelector, useDispatch} from 'react-redux';
 import {RootState, AppDispatch} from '../store';
 import {
@@ -39,7 +39,6 @@ import {
 } from 'lucide-react-native';
 import {
   colors,
-  darkMapStyle,
   getVehicleImage,
   normalizeVehicleId,
 } from '../theme';
@@ -274,13 +273,19 @@ const HomeScreen = ({navigation}: any) => {
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+          provider={PROVIDER_DEFAULT}
           style={StyleSheet.absoluteFill}
-          customMapStyle={darkMapStyle}
           region={location}
           showsUserLocation={false}
           showsMyLocationButton={false}
           showsCompass={false}>
+          {/* CartoDB Dark Matter tiles — no API key required */}
+          <UrlTile
+            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+            maximumZ={19}
+            flipY={false}
+            zIndex={-1}
+          />
           <Circle
             center={location}
             radius={40}

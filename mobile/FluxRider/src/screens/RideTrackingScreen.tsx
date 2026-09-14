@@ -11,10 +11,10 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import api from '../config/api';
-import {colors, darkMapStyle, normalizeVehicleId} from '../theme';
+import {colors, normalizeVehicleId} from '../theme';
 import {
   ApproachingVehicleMarker,
   UserLocationMarker,
@@ -394,20 +394,19 @@ const RideTrackingScreen = () => {
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         style={styles.map}
-        customMapStyle={darkMapStyle}
         initialRegion={{
           ...currentLocation,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
-        showsUserLocation
         showsMyLocationButton={false}>
         <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
           maximumZ={19}
           flipY={false}
+          zIndex={-1}
         />
         <ApproachingVehicleMarker
           coordinate={currentLocation}

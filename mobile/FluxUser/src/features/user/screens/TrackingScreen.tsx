@@ -14,7 +14,7 @@ import {
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import MapView, {
   Marker,
-  PROVIDER_GOOGLE,
+  PROVIDER_DEFAULT,
   Polyline,
   UrlTile,
 } from 'react-native-maps';
@@ -34,7 +34,7 @@ import {
   Bike,
   CheckCircle2,
 } from 'lucide-react-native';
-import {colors, darkMapStyle, normalizeVehicleId} from '../../../theme';
+import {colors, normalizeVehicleId} from '../../../theme';
 import {
   ApproachingVehicleMarker,
   UserLocationMarker,
@@ -333,7 +333,7 @@ export default function TrackingScreen() {
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+          provider={PROVIDER_DEFAULT}
           style={StyleSheet.absoluteFill}
           initialRegion={{
             latitude: mapCenter.latitude,
@@ -341,17 +341,15 @@ export default function TrackingScreen() {
             latitudeDelta: 0.015,
             longitudeDelta: 0.015,
           }}
-          mapType="standard"
-          userInterfaceStyle="dark"
-          customMapStyle={darkMapStyle}
           loadingEnabled={true}
           showsUserLocation={false}
           showsMyLocationButton={false}
           toolbarEnabled={false}>
           <UrlTile
-            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
             maximumZ={19}
             flipY={false}
+            zIndex={-1}
           />
           <ApproachingVehicleMarker
             coordinate={mapCenter}

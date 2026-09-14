@@ -105,6 +105,21 @@ public class BiddingService {
     public Booking acceptBid(Long bidId) {
         Bid bid = bidRepository.findById(bidId)
                 .orElseThrow(() -> new RuntimeException("Bid not found"));
+
+        // Re-fetch booking inside the transaction to see the latest DB state
+        Booking freshBooking = bookingRepository.findById(bid.getBooking().getId())
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        // Atomic guard: booking must still be in BIDDING status
+        if (freshBooking.getStatus() != BookingStatus.BIDDING) {
+            throw new RuntimeException("This booking is no longer available — another rider may have already been selected.");
+        }
+
+        // Guard: bid must still be PENDING
+        if (bid.getStatus() != BidStatus.PENDING) {
+            throw new RuntimeException("This bid is no longer valid.");
+        }
+
         List<BookingStatus> activeStatuses = List.of(
                 BookingStatus.ACCEPTED,
                 BookingStatus.RIDER_EN_ROUTE,

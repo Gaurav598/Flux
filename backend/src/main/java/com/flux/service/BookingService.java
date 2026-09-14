@@ -394,6 +394,10 @@ public class BookingService {
         return bookingRepository.countByStatus(status);
     }
 
+    public long getTotalBookingCount() {
+        return bookingRepository.count();
+    }
+
     @Transactional
     public Booking markRiderReached(Long bookingId, Long riderId) {
         Booking booking = getBookingById(bookingId);

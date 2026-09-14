@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
-import {getRideBids, acceptBid} from '../../../services/rideService';
+import {getRideBids, acceptBid, cancelRide} from '../../../services/rideService';
 import {colors} from '../../../theme';
 import CardGradient from '../../../components/CardGradient';
 import {safeErrorMessage} from '../../../utils/safeErrorMessage';
@@ -285,6 +285,25 @@ export default function BidsScreen() {
       setAccepting(false);
     }
   };
+  const handleCancel = async () => {
+    Alert.alert('Cancel Ride', 'Are you sure you want to cancel your ride request?', [
+      {text: 'No', style: 'cancel'},
+      {
+        text: 'Yes',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setLoading(true);
+            await cancelRide(rideId);
+            navigation.navigate('UserHome');
+          } catch (error: any) {
+            Alert.alert('Error', safeErrorMessage(error, 'Failed to cancel ride'));
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <View className="flex-1" style={{backgroundColor: colors.bg}}>
@@ -414,6 +433,17 @@ export default function BidsScreen() {
             </View>
           )}
         </ScrollView>
+        <View className="pb-8 pt-4 bg-transparent">
+          <TouchableOpacity
+            onPress={handleCancel}
+            disabled={accepting}
+            className="py-4 rounded-xl items-center border"
+            style={{borderColor: colors.border, backgroundColor: colors.surfaceAlt}}>
+            <Text className="font-bold text-lg" style={{color: colors.danger}}>
+              Cancel Ride
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

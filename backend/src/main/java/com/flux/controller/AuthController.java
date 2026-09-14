@@ -29,6 +29,45 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final FirebaseOtpService firebaseOtpService;
 
+    @org.springframework.beans.factory.annotation.Value("${admin.username:admin}")
+    private String adminUsername;
+
+    @org.springframework.beans.factory.annotation.Value("${admin.password:flux_admin_2024}")
+    private String adminPassword;
+
+    /**
+     * Admin login endpoint — accepts username/password and returns a JWT with ADMIN role.
+     * Credentials are configured via admin.username / admin.password in application properties
+     * or environment variables ADMIN_USERNAME / ADMIN_PASSWORD.
+     */
+    @PostMapping("/admin/login")
+    public ResponseEntity<?> adminLogin(@RequestBody Map<String, String> credentials) {
+        String username = credentials.getOrDefault("username", "");
+        String password = credentials.getOrDefault("password", "");
+
+        if (!adminUsername.equals(username) || !adminPassword.equals(password)) {
+            log.warn("Admin login failed for username={}", username);
+            return ResponseEntity.status(401).body(Map.of("message", "Invalid admin credentials"));
+        }
+
+        // Issue a JWT with ADMIN role using a synthetic mobile number as identifier
+        String adminIdentifier = "admin_" + username;
+        // Find or create admin user
+        User adminUser = userService.createOrGetUser(adminIdentifier, "Administrator", UserRole.ADMIN);
+
+        String accessToken = jwtUtil.generateToken(adminIdentifier, "ADMIN", adminUser.getId());
+        String refreshToken = jwtUtil.generateRefreshToken(adminIdentifier, "ADMIN", adminUser.getId());
+
+        log.info("Admin login successful for username={}, userId={}", username, adminUser.getId());
+        return ResponseEntity.ok(Map.of(
+                "accessToken", accessToken,
+                "refreshToken", refreshToken,
+                "userId", adminUser.getId(),
+                "role", "ADMIN",
+                "message", "Admin login successful"
+        ));
+    }
+
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@RequestBody AuthRequest request) {
         String phoneNumber = null;

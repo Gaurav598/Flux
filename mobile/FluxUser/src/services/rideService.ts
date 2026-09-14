@@ -51,11 +51,16 @@ export interface Ride {
   vehicleType: string;
   status:
     | 'PENDING'
+    | 'BIDDING'
     | 'ACCEPTED'
+    | 'RIDER_EN_ROUTE'
     | 'RIDER_ARRIVED'
     | 'IN_PROGRESS'
     | 'COMPLETED'
-    | 'CANCELLED';
+    | 'CANCELLED_BY_USER'
+    | 'CANCELLED_BY_RIDER'
+    | 'NO_RIDERS_AVAILABLE'
+    | 'CANCELLED'; // legacy alias
   fare?: number;
   maxFare: number;
   distanceKm: number;

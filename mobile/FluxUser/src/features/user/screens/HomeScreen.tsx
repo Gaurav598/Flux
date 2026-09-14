@@ -17,12 +17,12 @@ import {
 import MapView, {
   Marker,
   Circle,
-  PROVIDER_GOOGLE,
+  PROVIDER_DEFAULT,
+  UrlTile,
   Region,
 } from 'react-native-maps';
 import {
   colors,
-  darkMapStyle,
   getMapVehicle,
   getVehicleImage,
   normalizeVehicleId,
@@ -479,7 +479,7 @@ const HomeScreen = ({navigation}: any) => {
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+          provider={PROVIDER_DEFAULT}
           style={StyleSheet.absoluteFill}
           initialRegion={{
             latitude: currentCoords?.latitude ?? 28.6139,
@@ -490,8 +490,14 @@ const HomeScreen = ({navigation}: any) => {
           showsUserLocation={false}
           showsMyLocationButton={false}
           showsCompass={false}
-          customMapStyle={darkMapStyle}
           onRegionChangeComplete={handleMapRegionChangeComplete}>
+          {/* CartoDB Dark Matter tiles — no API key required */}
+          <UrlTile
+            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+            maximumZ={19}
+            flipY={false}
+            zIndex={-1}
+          />
           {/* User location - Google Maps style blue dot with direction cone */}
           {nearbyRiders.map((rider, index) => {
             const mapVehicle = getMapVehicle(
