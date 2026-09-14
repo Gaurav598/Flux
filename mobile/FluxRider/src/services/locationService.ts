@@ -59,8 +59,26 @@ const getPositionOnce = (options: {
       error => reject(error),
       {
         ...options,
-        showLocationDialog: false,
-        forceRequestLocation: false,
+        showLocationDialog: true,
+        forceRequestLocation: true,
+      },
+    );
+  });
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
+  new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Location timed out')),
+      timeoutMs,
+    );
+    promise.then(
+      value => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timeout);
+        reject(error);
       },
     );
   });
@@ -114,31 +132,27 @@ export const requestLocationPermission = async (): Promise<boolean> => {
 
 export const getCurrentLocation = async (): Promise<Location> => {
   try {
-    const highAccuracy = await Promise.race<Location>([
+    const highAccuracy = await withTimeout(
       getPositionOnce({
         enableHighAccuracy: true,
         timeout: 10000,
         maximumAge: 5000,
       }),
-      new Promise<Location>((_, reject) =>
-        setTimeout(() => reject(new Error('Location timed out')), 11000),
-      ),
-    ]);
+      11000,
+    );
     await cacheLocation(highAccuracy);
     return highAccuracy;
   } catch {}
 
   try {
-    const lowAccuracy = await Promise.race<Location>([
+    const lowAccuracy = await withTimeout(
       getPositionOnce({
         enableHighAccuracy: false,
         timeout: 7000,
         maximumAge: 120000,
       }),
-      new Promise<Location>((_, reject) =>
-        setTimeout(() => reject(new Error('Location timed out')), 8000),
-      ),
-    ]);
+      8000,
+    );
     await cacheLocation(lowAccuracy);
     return lowAccuracy;
   } catch {}
@@ -174,8 +188,8 @@ export const watchLocation = (
       distanceFilter: 50,
       interval: 30000,
       fastestInterval: 15000,
-      showLocationDialog: false,
-      forceRequestLocation: false,
+      showLocationDialog: true,
+      forceRequestLocation: true,
     },
   );
 

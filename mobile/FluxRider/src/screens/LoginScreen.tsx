@@ -18,7 +18,6 @@ import {loginSuccess, setLoading} from '../store/slices/authSlice';
 import {AppDispatch} from '../store';
 import api from '../config/api';
 import {ChevronLeft} from 'lucide-react-native';
-import {API_BASE_URL} from '../config/env';
 import {
   TOKEN_KEY,
   REFRESH_TOKEN_KEY,
@@ -114,7 +113,7 @@ const LoginScreen = () => {
           : []),
         [USER_PROFILE_KEY, JSON.stringify(userPayload)],
       ]);
-      dispatch(loginSuccess({user: userPayload, accessToken}));
+      dispatch(loginSuccess({user: userPayload, accessToken, refreshToken}));
     } catch (error: any) {
       if (error.code === 'ERR_NETWORK' || !error.response) {
         Alert.alert(
@@ -123,7 +122,10 @@ const LoginScreen = () => {
         );
       } else {
         const errData = error.response?.data;
-        Alert.alert('Error', errData?.message || JSON.stringify(errData) || 'Login failed');
+        Alert.alert(
+          'Error',
+          errData?.message || JSON.stringify(errData) || 'Login failed',
+        );
       }
     } finally {
       setLoadingState(false);

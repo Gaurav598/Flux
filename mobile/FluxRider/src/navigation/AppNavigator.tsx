@@ -17,7 +17,6 @@ import {
 } from '../context/NotificationContext';
 import {setupNotificationListeners} from '../services/notificationService';
 import PopupNotifications from '../components/PopupNotifications';
-import api from '../config/api';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';

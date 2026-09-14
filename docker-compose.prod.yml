@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -21,8 +19,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: flux-redis
-    ports:
-      - "6379:6379"
     networks:
       - flux-network
     healthcheck:
@@ -34,8 +30,6 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: flux-kafka
-    ports:
-      - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -46,6 +40,7 @@ services:
       - zookeeper
     networks:
       - flux-network
+    restart: unless-stopped
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -54,10 +49,22 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
       KAFKA_HEAP_OPTS: "-Xmx128m -Xms64m"
-    ports:
-      - "2181:2181"
     networks:
       - flux-network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: flux-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/flux.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - flux-network
+    restart: unless-stopped
 
   backend:
     image: ${DOCKER_USERNAME}/flux-backend:latest

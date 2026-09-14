@@ -7,6 +7,7 @@ import {
   RefreshControl,
   SafeAreaView,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import api from '../config/api';
 import {colors} from '../theme';
@@ -111,7 +112,10 @@ const MyBidsScreen = ({navigation}: any) => {
           if (isActiveAccepted) {
             navigation.navigate('RideTracking', {bookingId: item.booking.id});
           } else if (item.status === 'ACCEPTED') {
-            alert('Complete your current active ride before opening another accepted offer.');
+            Alert.alert(
+              'Active ride in progress',
+              'Complete your current active ride before opening another accepted offer.',
+            );
           }
         }}>
         <CardGradient radius={28} />

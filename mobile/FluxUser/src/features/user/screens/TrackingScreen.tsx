@@ -7,7 +7,6 @@ import {
   Animated,
   Alert,
   Linking,
-  ActivityIndicator,
   SafeAreaView,
   StyleSheet,
   useWindowDimensions,
@@ -17,7 +16,7 @@ import MapView, {
   Marker,
   PROVIDER_GOOGLE,
   Polyline,
-  UrlTile
+  UrlTile,
 } from 'react-native-maps';
 import {getDrivingRoute} from '../../../services/directionsService';
 import {getRideDetails, cancelRide} from '../../../services/rideService';
@@ -27,7 +26,6 @@ import {
   Phone,
   MessageSquare,
   Shield,
-  Navigation,
   Check,
   User,
   Star,

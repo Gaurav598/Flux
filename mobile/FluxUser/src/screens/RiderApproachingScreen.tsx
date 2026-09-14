@@ -10,12 +10,10 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {PROVIDER_GOOGLE, Polyline, UrlTile} from 'react-native-maps';
 import {
   Phone,
   MessageCircle,
-  Navigation,
-  User,
   Star,
   Clock,
   AlertCircle,
@@ -120,7 +118,9 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
         },
       ).then(res => {
         if (res) {
-          if (res.coordinates) setRouteCoords(res.coordinates);
+          if (res.coordinates) {
+            setRouteCoords(res.coordinates);
+          }
           if (res.durationMin) {
             const minutes = Math.ceil(res.durationMin);
             setEta(`${minutes} min${minutes !== 1 ? 's' : ''}`);

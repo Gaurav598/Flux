@@ -103,7 +103,7 @@ const SetPriceScreen = ({navigation, route}: any) => {
 
       // small delay to avoid potential navigation race conditions
       try {
-        await new Promise(res => setTimeout(res, 200));
+        await new Promise<void>(resolve => setTimeout(resolve, 200));
         navigation.navigate('UserBids', {
           rideId: String(rideId),
           from: pickup,

@@ -38,8 +38,10 @@ public class Bid {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private BidStatus status = BidStatus.PENDING;
     
+    @Builder.Default
     private Boolean isEdited = false;
     private Double previousBidAmount;
     

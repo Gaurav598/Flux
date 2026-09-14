@@ -6,12 +6,4 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">13.206.15.170</domain>
     </domain-config>
-    
-    <!-- Debug configuration: allows any certificate in debug builds -->
-    <debug-overrides>
-        <trust-anchors>
-            <certificates src="system" />
-            <certificates src="user" />
-        </trust-anchors>
-    </debug-overrides>
 </network-security-config>

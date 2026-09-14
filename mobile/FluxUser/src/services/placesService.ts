@@ -51,10 +51,11 @@ export const searchPlaces = async (
   }
 };
 
-export const getPlaceDetails = async (
-  placeId: string,
-): Promise<{latitude: number; longitude: number} | null> => {
-  // LocationIQ autocomplete already returns latitude/longitude, 
+export const getPlaceDetails = async (): Promise<{
+  latitude: number;
+  longitude: number;
+} | null> => {
+  // LocationIQ autocomplete already returns latitude/longitude,
   // so we don't necessarily need a separate details call in most cases.
   return null;
 };

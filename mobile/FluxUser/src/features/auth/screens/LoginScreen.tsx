@@ -27,7 +27,6 @@ import {
   USER_PROFILE_KEY,
 } from '../../../constants/storageKeys';
 import {ChevronLeft} from 'lucide-react-native';
-import {API_BASE_URL} from '../../../config/env';
 import {getFCMToken} from '../../../services/notificationService';
 import {colors} from '../../../theme';
 
@@ -152,7 +151,10 @@ const LoginScreen = () => {
         );
       } else {
         const errData = error.response?.data;
-        Alert.alert('Error', errData?.message || JSON.stringify(errData) || 'Login failed');
+        Alert.alert(
+          'Error',
+          errData?.message || JSON.stringify(errData) || 'Login failed',
+        );
       }
     } finally {
       setLoadingState(false);

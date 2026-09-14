@@ -1,8 +1,7 @@
-import React, {useState, useEffect, useRef, useMemo, useCallback} from 'react';
+import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   TouchableOpacity,
   Alert,
@@ -25,7 +24,7 @@ import {
   Star,
   CheckCircle,
 } from 'lucide-react-native';
-import {colors, darkMapStyle, getVehicleImage, normalizeVehicleId} from '../theme';
+import {colors, darkMapStyle, normalizeVehicleId} from '../theme';
 import {ApproachingVehicleMarker, UserLocationMarker} from '../components/MapMarkers';
 import CardGradient from '../components/CardGradient';
 
@@ -71,11 +70,6 @@ const ActiveBookingScreen = () => {
   const cancelledHandled = useRef(false);
   const completedHandled = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const AnimatedMarker = useMemo(
-    () => Animated.createAnimatedComponent(Marker),
-    [],
-  );
 
   const asCoordinate = (value: unknown, fallback: number) => {
     const num = Number(value);
@@ -189,6 +183,16 @@ const ActiveBookingScreen = () => {
     }
   }, [animatedLatitude, animatedLongitude, booking, bookingId, navigation]);
 
+  const fetchUserOtp = useCallback(async () => {
+    try {
+      const response = await api.get('/user/profile');
+      setUserOtp(response.data.fixedOtp || '0000');
+    } catch (error) {
+      console.log('Error fetching user OTP:', error);
+      setUserOtp('0000');
+    }
+  }, []);
+
   useEffect(() => {
     if (!Number.isFinite(bookingId) || bookingId <= 0) {
       setLoading(false);
@@ -203,17 +207,7 @@ const ActiveBookingScreen = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [fetchBookingDetails]);
-
-  const fetchUserOtp = async () => {
-    try {
-      const response = await api.get('/user/profile');
-      setUserOtp(response.data.fixedOtp || '0000');
-    } catch (error) {
-      console.log('Error fetching user OTP:', error);
-      setUserOtp('0000');
-    }
-  };
+  }, [bookingId, fetchBookingDetails, fetchUserOtp]);
 
   useEffect(() => {
     if (booking && booking.rider && mapRef.current) {
@@ -255,7 +249,7 @@ const ActiveBookingScreen = () => {
               latitude: booking.pickupLatitude,
               longitude: booking.pickupLongitude,
             };
-            
+
       getDrivingRoute(riderLocation, destination).then(res => {
         if (res && res.coordinates) {
           setRouteCoords(res.coordinates);
@@ -270,6 +264,7 @@ const ActiveBookingScreen = () => {
     booking?.pickupLongitude,
     booking?.dropLatitude,
     booking?.dropLongitude,
+    booking,
   ]);
 
   const handleCallRider = () => {

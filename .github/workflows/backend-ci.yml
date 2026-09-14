@@ -88,7 +88,7 @@ jobs:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.prod.yml,infra/nginx/flux.conf"
           # copy to a temporary directory in the SSH user's home (no sudo required)
           target: "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp"
 
@@ -123,6 +123,10 @@ jobs:
             if [ -f "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.prod.yml" ]; then
               sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.prod.yml" ./docker-compose.yml || true
             fi
+            if [ -f "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/infra/nginx/flux.conf" ]; then
+              sudo mkdir -p ./nginx
+              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/infra/nginx/flux.conf" ./nginx/flux.conf || true
+            fi
             # Clean up the temporary directory
             rm -rf "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp" || true
 
@@ -152,9 +156,11 @@ jobs:
 
             echo "Using compose command: $COMPOSE_CMD"
 
-            # Pull latest image for backend and force recreate to ensure new image is used
-            $COMPOSE_CMD pull backend || { echo "docker pull failed"; $COMPOSE_CMD images; exit 1; }
-            $COMPOSE_CMD up -d --force-recreate backend || { echo "docker compose up failed"; $COMPOSE_CMD logs backend --tail=200 || true; exit 1; }
+            # Start data-plane deps without recreating Kafka/ZooKeeper (avoids ZK NodeExists races).
+            $COMPOSE_CMD up -d postgres redis zookeeper kafka
+            # Pull latest image for backend (and nginx) then recreate only those services.
+            $COMPOSE_CMD pull backend nginx || { echo "docker pull failed"; $COMPOSE_CMD images; exit 1; }
+            $COMPOSE_CMD up -d --no-deps --force-recreate backend nginx || { echo "docker compose up failed"; $COMPOSE_CMD logs backend nginx --tail=200 || true; exit 1; }
 
             # Optionally restart other services (uncomment if needed)
             # $COMPOSE_CMD up -d --force-recreate

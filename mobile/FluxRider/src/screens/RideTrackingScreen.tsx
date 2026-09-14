@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef, useCallback} from 'react';
+import React, {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {
   View,
   Text,
@@ -109,6 +109,39 @@ const RideTrackingScreen = () => {
     }
   }, [resolvedBookingId]);
 
+  const startLocationTracking = useCallback(async () => {
+    if (watchIdRef.current !== null) {
+      return;
+    }
+
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      return;
+    }
+
+    try {
+      const initial = await getCurrentLocation();
+      setCurrentLocation(initial);
+      await api.patch('/rider/location', null, {
+        params: {latitude: initial.latitude, longitude: initial.longitude},
+      });
+    } catch (error) {
+      console.log('Initial location error:', error);
+    }
+
+    watchIdRef.current = watchLocation(
+      ({latitude, longitude}) => {
+        setCurrentLocation({latitude, longitude});
+        api
+          .patch('/rider/location', null, {
+            params: {latitude, longitude},
+          })
+          .catch(console.log);
+      },
+      error => console.log('Location error:', error),
+    );
+  }, []);
+
   useEffect(() => {
     if (!resolvedBookingId && !params.booking) {
       Alert.alert('Ride not found', 'Unable to load ride details.', [
@@ -126,7 +159,91 @@ const RideTrackingScreen = () => {
         watchIdRef.current = null;
       }
     };
-  }, [fetchBookingDetails]);
+  }, [
+    fetchBookingDetails,
+    navigation,
+    params.booking,
+    resolvedBookingId,
+    startLocationTracking,
+  ]);
+
+  useEffect(() => {
+    if (booking && mapRef.current) {
+      const coordinates = [
+        currentLocation,
+        rideStatus === 'ACCEPTED' || rideStatus === 'RIDER_ARRIVED'
+          ? {
+              latitude: asCoordinate(
+                booking.pickupLatitude,
+                currentLocation.latitude,
+              ),
+              longitude: asCoordinate(
+                booking.pickupLongitude,
+                currentLocation.longitude,
+              ),
+            }
+          : {
+              latitude: asCoordinate(
+                booking.dropLatitude,
+                currentLocation.latitude,
+              ),
+              longitude: asCoordinate(
+                booking.dropLongitude,
+                currentLocation.longitude,
+              ),
+            },
+      ];
+
+      mapRef.current.fitToCoordinates(coordinates, {
+        edgePadding: {
+          top: 100,
+          right: 50,
+          bottom: Math.round(windowHeight * 0.42),
+          left: 50,
+        },
+        animated: true,
+      });
+    }
+  }, [booking, currentLocation, rideStatus, windowHeight]);
+
+  const destination = useMemo(() => {
+    if (!booking) {
+      return null;
+    }
+    return rideStatus === 'ACCEPTED' ||
+      rideStatus === 'RIDER_EN_ROUTE' ||
+      rideStatus === 'RIDER_ARRIVED'
+      ? {
+          latitude: asCoordinate(booking.pickupLatitude, currentLocation.latitude),
+          longitude: asCoordinate(
+            booking.pickupLongitude,
+            currentLocation.longitude,
+          ),
+        }
+      : {
+          latitude: asCoordinate(booking.dropLatitude, currentLocation.latitude),
+          longitude: asCoordinate(booking.dropLongitude, currentLocation.longitude),
+        };
+  }, [booking, currentLocation, rideStatus]);
+
+  const canRenderDirections =
+    !!destination &&
+    hasValidCoordinate(currentLocation.latitude) &&
+    hasValidCoordinate(currentLocation.longitude) &&
+    hasValidCoordinate(destination.latitude) &&
+    hasValidCoordinate(destination.longitude);
+
+  useEffect(() => {
+    if (!canRenderDirections || !destination) {
+      return;
+    }
+
+    getDrivingRoute(currentLocation, destination).then(res => {
+      if (res && res.coordinates) {
+        setRouteCoords(res.coordinates);
+      }
+    });
+  }, [currentLocation, destination, canRenderDirections]);
 
   const handleOpenNavigation = () => {
     const dest =
@@ -182,78 +299,6 @@ const RideTrackingScreen = () => {
         },
       },
     ]);
-  };
-
-  useEffect(() => {
-    if (booking && mapRef.current) {
-      const coordinates = [
-        currentLocation,
-        rideStatus === 'ACCEPTED' || rideStatus === 'RIDER_ARRIVED'
-          ? {
-              latitude: asCoordinate(
-                booking.pickupLatitude,
-                currentLocation.latitude,
-              ),
-              longitude: asCoordinate(
-                booking.pickupLongitude,
-                currentLocation.longitude,
-              ),
-            }
-          : {
-              latitude: asCoordinate(
-                booking.dropLatitude,
-                currentLocation.latitude,
-              ),
-              longitude: asCoordinate(
-                booking.dropLongitude,
-                currentLocation.longitude,
-              ),
-            },
-      ];
-
-      mapRef.current.fitToCoordinates(coordinates, {
-        edgePadding: {
-          top: 100,
-          right: 50,
-          bottom: Math.round(windowHeight * 0.42),
-          left: 50,
-        },
-        animated: true,
-      });
-    }
-  }, [booking, currentLocation, rideStatus, windowHeight]);
-
-  const startLocationTracking = async () => {
-    if (watchIdRef.current !== null) {
-      return;
-    }
-
-    const hasPermission = await requestLocationPermission();
-    if (!hasPermission) {
-      return;
-    }
-
-    try {
-      const initial = await getCurrentLocation();
-      setCurrentLocation(initial);
-      await api.patch('/rider/location', null, {
-        params: {latitude: initial.latitude, longitude: initial.longitude},
-      });
-    } catch (error) {
-      console.log('Initial location error:', error);
-    }
-
-    watchIdRef.current = watchLocation(
-      ({latitude, longitude}) => {
-        setCurrentLocation({latitude, longitude});
-        api
-          .patch('/rider/location', null, {
-            params: {latitude, longitude},
-          })
-          .catch(console.log);
-      },
-      error => console.log('Location error:', error),
-    );
   };
 
   const handleArrived = async () => {
@@ -344,37 +389,6 @@ const RideTrackingScreen = () => {
       </View>
     );
   }
-
-  const destination =
-    rideStatus === 'ACCEPTED' ||
-    rideStatus === 'RIDER_EN_ROUTE' ||
-    rideStatus === 'RIDER_ARRIVED'
-      ? {
-          latitude: asCoordinate(booking.pickupLatitude, currentLocation.latitude),
-          longitude: asCoordinate(
-            booking.pickupLongitude,
-            currentLocation.longitude,
-          ),
-        }
-      : {
-          latitude: asCoordinate(booking.dropLatitude, currentLocation.latitude),
-          longitude: asCoordinate(booking.dropLongitude, currentLocation.longitude),
-        };
-  const canRenderDirections =
-    hasValidCoordinate(currentLocation.latitude) &&
-    hasValidCoordinate(currentLocation.longitude) &&
-    hasValidCoordinate(destination.latitude) &&
-    hasValidCoordinate(destination.longitude);
-
-  useEffect(() => {
-    if (canRenderDirections && currentLocation && destination) {
-      getDrivingRoute(currentLocation, destination).then(res => {
-        if (res && res.coordinates) {
-          setRouteCoords(res.coordinates);
-        }
-      });
-    }
-  }, [currentLocation, destination, canRenderDirections]);
 
   return (
     <View style={styles.container}>

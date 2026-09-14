@@ -41,6 +41,7 @@ public class Booking {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private BookingStatus status = BookingStatus.PENDING;
     
     @Column(nullable = false)
@@ -80,6 +81,7 @@ public class Booking {
     
     private Double userEnteredAmount;
     
+    @Builder.Default
     private Integer biddingWindowSeconds = 45;
     private LocalDateTime biddingStartTime;
     private LocalDateTime biddingEndTime;

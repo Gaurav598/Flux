@@ -61,7 +61,7 @@ const ProfileScreen = () => {
       const rider = response.data;
       setProfile(rider);
       setForm({
-        fullName: rider?.user?.fullName || user?.fullName || '',
+        fullName: rider?.user?.fullName || user?.name || '',
         vehicleType: rider?.vehicleType || '',
         vehicleModel: rider?.vehicleModel || '',
         vehicleRegistrationNumber: rider?.vehicleRegistrationNumber || '',
@@ -69,7 +69,7 @@ const ProfileScreen = () => {
     } catch {
       // ignore
     }
-  }, [user?.fullName]);
+  }, [user?.name]);
 
   useEffect(() => {
     loadProfile();
@@ -158,7 +158,7 @@ const ProfileScreen = () => {
           <View style={styles.avatarWrapper}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {(profile?.user?.fullName || user?.fullName || 'C')
+                {(profile?.user?.fullName || user?.name || 'C')
                   .charAt(0)
                   .toUpperCase()}
               </Text>
@@ -169,10 +169,10 @@ const ProfileScreen = () => {
           </View>
 
           <Text style={styles.name}>
-            {profile?.user?.fullName || user?.fullName || 'Flux Captain'}
+            {profile?.user?.fullName || user?.name || 'Flux Captain'}
           </Text>
           <Text style={styles.phoneText}>
-            {profile?.user?.mobileNumber || user?.mobileNumber || ''}
+            {profile?.user?.mobileNumber || user?.phone || ''}
           </Text>
 
           <View style={styles.vehicleCard}>
