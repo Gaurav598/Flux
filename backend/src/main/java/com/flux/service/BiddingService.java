@@ -106,8 +106,9 @@ public class BiddingService {
         Bid bid = bidRepository.findById(bidId)
                 .orElseThrow(() -> new RuntimeException("Bid not found"));
 
-        // Re-fetch booking inside the transaction to see the latest DB state
-        Booking freshBooking = bookingRepository.findById(bid.getBooking().getId())
+        // Re-fetch booking with a pessimistic write lock (SELECT FOR UPDATE) to prevent
+        // two concurrent riders from simultaneously passing the BIDDING guard.
+        Booking freshBooking = bookingRepository.findByIdWithLock(bid.getBooking().getId())
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
 
         // Atomic guard: booking must still be in BIDDING status
