@@ -32,7 +32,7 @@ public class AuthController {
     @org.springframework.beans.factory.annotation.Value("${admin.username:admin}")
     private String adminUsername;
 
-    @org.springframework.beans.factory.annotation.Value("${admin.password:flux_admin_2024}")
+    @org.springframework.beans.factory.annotation.Value("${admin.password:flux@admin2026}")
     private String adminPassword;
 
     /**
