@@ -87,3 +87,5 @@ DerivedData/
 dist/
 coverage/
 flux-production-key.pem.gradle-home/
+dummy_key.pem
+*.pem
