@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Car, FileText, Bike } from 'lucide-react';
+import { LayoutDashboard, Users, Car, FileText, Bike, LogOut } from 'lucide-react';
+import { logoutAdmin } from '../lib/api';
 
 export default function Layout() {
   const location = useLocation();
@@ -47,6 +48,15 @@ export default function Layout() {
             );
           })}
         </nav>
+        <div className="p-3 border-t border-zinc-800">
+          <button
+            onClick={logoutAdmin}
+            className="w-full flex items-center px-3.5 py-2.5 rounded-xl text-sm text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all"
+          >
+            <LogOut className="w-[18px] h-[18px] mr-3" strokeWidth={2.2} />
+            Sign Out
+          </button>
+        </div>
       </aside>
       <main className="flex-1 overflow-auto bg-ink-950">
         <header className="sticky top-0 z-20 flex items-center justify-between px-8 h-16 border-b border-ink-700 bg-ink-950/80 backdrop-blur-xl">

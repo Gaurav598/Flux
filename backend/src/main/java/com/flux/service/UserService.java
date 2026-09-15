@@ -62,9 +62,16 @@ public class UserService {
     }
     
     private String generateFixedOtp(String mobileNumber) {
-        int lastFourDigits = Integer.parseInt(mobileNumber.substring(mobileNumber.length() - 4));
-        int otp = (lastFourDigits * 7 + 1234) % 10000;
-        return String.format("%04d", otp);
+        try {
+            String lastFour = mobileNumber.substring(Math.max(0, mobileNumber.length() - 4));
+            int lastFourDigits = Integer.parseInt(lastFour);
+            int otp = (lastFourDigits * 7 + 1234) % 10000;
+            return String.format("%04d", otp);
+        } catch (NumberFormatException e) {
+            // Fallback for non-numeric identifiers (e.g. admin accounts)
+            int otp = Math.abs(mobileNumber.hashCode()) % 10000;
+            return String.format("%04d", otp);
+        }
     }
 
     /** Legacy convenience wrapper used by remaining callers. */

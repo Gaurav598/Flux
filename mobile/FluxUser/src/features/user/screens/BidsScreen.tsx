@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
-import {getRideBids, acceptBid} from '../../../services/rideService';
+import {getRideBids, acceptBid, cancelRide} from '../../../services/rideService';
 import {colors} from '../../../theme';
 import CardGradient from '../../../components/CardGradient';
 import {safeErrorMessage} from '../../../utils/safeErrorMessage';
@@ -20,6 +20,7 @@ import {
   Shield,
   ArrowRight,
   User,
+  XCircle,
 } from 'lucide-react-native';
 
 type RootStackParamList = {
@@ -179,6 +180,7 @@ export default function BidsScreen() {
   const [bids, setBids] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [newBidIds, setNewBidIds] = useState<Set<string>>(new Set());
 
   const loadBids = useCallback(async () => {
@@ -286,6 +288,41 @@ export default function BidsScreen() {
     }
   };
 
+  const handleCancelRide = () => {
+    if (cancelling || accepting) {
+      return;
+    }
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel? Riders who bid will be notified.',
+      [
+        {text: 'Keep Waiting', style: 'cancel'},
+        {
+          text: 'Cancel Booking',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              await cancelRide(rideId, 'User cancelled while waiting for bids');
+              Alert.alert(
+                'Booking Cancelled',
+                'Your booking has been cancelled.',
+                [{text: 'OK', onPress: () => (navigation as any).replace('UserHome')}],
+              );
+            } catch (err: any) {
+              Alert.alert(
+                'Error',
+                safeErrorMessage(err, 'Failed to cancel. Please try again.'),
+              );
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <View className="flex-1" style={{backgroundColor: colors.bg}}>
       {/* Header */}
@@ -313,7 +350,13 @@ export default function BidsScreen() {
               </Text>
             </View>
           </View>
-          <View className="w-10" />
+          <TouchableOpacity
+            onPress={handleCancelRide}
+            disabled={cancelling || accepting}
+            className="p-2.5 rounded-xl border"
+            style={{backgroundColor: colors.surfaceAlt, borderColor: colors.border, opacity: (cancelling || accepting) ? 0.5 : 1}}>
+            <XCircle size={24} color={colors.danger} strokeWidth={2.5} />
+          </TouchableOpacity>
         </View>
       </View>
 
