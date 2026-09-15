@@ -421,12 +421,12 @@ export default function TrackingScreen() {
             <View style={styles.riderInfo}>
               <Text style={styles.riderName}>{riderProfile.name}</Text>
               <View style={styles.vehicleRow}>
-                <View style={styles.vehicleBadge}>
-                  <Text style={styles.vehicleNumber}>
+                <View style={[styles.vehicleBadge, {flexShrink: 1}]}>
+                  <Text style={styles.vehicleNumber} numberOfLines={1}>
                     {riderProfile.vehicleNumber}
                   </Text>
                 </View>
-                <Text style={styles.vehicleModel}>
+                <Text style={[styles.vehicleModel, {flexShrink: 1}]} numberOfLines={1}>
                   {riderProfile.vehicle}
                 </Text>
               </View>
@@ -562,7 +562,7 @@ const CompletedScreen = ({rider, fare, _from, _to, navigation}: any) => {
     <SafeAreaView style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: 40}}>
+        contentContainerStyle={{paddingBottom: 120}}>
         <View style={styles.completedContent}>
           <Animated.View style={{transform: [{scale: scaleAnim}]}}>
             <View style={styles.completedIcon}>

@@ -1,4 +1,5 @@
 import React, {useState, useEffect, useRef, useCallback} from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -210,22 +211,22 @@ const HomeScreen = ({navigation}: any) => {
     }
   }, [dispatch]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchRealEarnings();
+      fetchRiderProfile();
+      checkActiveRide();
+
+      const rideCheckInterval = setInterval(checkActiveRide, 5000);
+      return () => {
+        clearInterval(rideCheckInterval);
+      };
+    }, [checkActiveRide, fetchRealEarnings, fetchRiderProfile])
+  );
+
   useEffect(() => {
     requestAndLoadLocation();
-    fetchRealEarnings();
-    fetchRiderProfile();
-    checkActiveRide();
-
-    const rideCheckInterval = setInterval(checkActiveRide, 5000);
-    return () => {
-      clearInterval(rideCheckInterval);
-    };
-  }, [
-    checkActiveRide,
-    fetchRealEarnings,
-    fetchRiderProfile,
-    requestAndLoadLocation,
-  ]);
+  }, [requestAndLoadLocation]);
 
   useEffect(() => {
     if (isOnline && hasLocationPermission) {
@@ -386,7 +387,7 @@ const HomeScreen = ({navigation}: any) => {
           <TouchableOpacity
             activeOpacity={0.85}
             style={styles.vehicleIdentityCard}
-            onPress={() => navigation.navigate('Profile')}>
+            onPress={() => navigation.navigate('ProfileTab')}>
             <CardGradient radius={24} />
             <View style={styles.vehicleIconWrap}>
               <Image

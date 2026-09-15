@@ -15,14 +15,15 @@ import {createRideRequest} from '../../../services/rideService';
 import {colors} from '../../../theme';
 import CardGradient from '../../../components/CardGradient';
 import {safeErrorMessage} from '../../../utils/safeErrorMessage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const QUICK_INCREMENTS = [10, 20, 30];
 
 const SetPriceScreen = ({navigation, route}: any) => {
   const {pickup, drop, distanceKm, pickupCoords, dropCoords, vehicle} =
     route.params;
+  const insets = useSafeAreaInsets();
 
-  // Safely get vehicle label
   const vehicleId = String(vehicle?.id || '').toLowerCase();
   const vehicleLabel = vehicle?.label || vehicle?.name || 'Auto';
   const serviceType = vehicleId === 'parcel' ? 'PARCEL' : 'RIDE';
@@ -69,7 +70,7 @@ const SetPriceScreen = ({navigation, route}: any) => {
     try {
       if (pressed) {
         return;
-      } // prevent double press
+      }
       setPressed(true);
       setLoading(true);
       const result = await createRideRequest({
@@ -101,7 +102,6 @@ const SetPriceScreen = ({navigation, route}: any) => {
         return;
       }
 
-      // small delay to avoid potential navigation race conditions
       try {
         await new Promise<void>(resolve => setTimeout(resolve, 200));
         navigation.navigate('UserBids', {
@@ -131,7 +131,7 @@ const SetPriceScreen = ({navigation, route}: any) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -139,9 +139,9 @@ const SetPriceScreen = ({navigation, route}: any) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Set Your Price</Text>
         <View style={{width: 40}} />
-      </SafeAreaView>
+      </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.section}>
           <Text style={styles.label}>Your Offer · {vehicleLabel}</Text>
           <View style={styles.offerCard}>
@@ -206,7 +206,7 @@ const SetPriceScreen = ({navigation, route}: any) => {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity
           style={[styles.createButton, loading && {opacity: 0.5}]}
           onPress={handleFindRiders}
@@ -244,20 +244,6 @@ const styles = StyleSheet.create({
     color: colors.textSub,
     marginBottom: 12,
   },
-  baseFareCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  baseFareAmount: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  baseFareLabel: {fontSize: 14, color: colors.textSub},
   offerCard: {
     backgroundColor: 'transparent',
     borderRadius: 16,
@@ -328,7 +314,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginTop: 24,
-    marginBottom: 100,
   },
   infoText: {fontSize: 14, color: colors.accent, lineHeight: 20},
   footer: {
@@ -338,7 +323,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: colors.surface,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

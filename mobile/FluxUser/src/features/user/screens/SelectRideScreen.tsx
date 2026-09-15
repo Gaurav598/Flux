@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
 import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
@@ -15,6 +14,7 @@ import {VEHICLE_TYPES} from '../../../data/mockData';
 import {ArrowLeft, Navigation, Clock} from 'lucide-react-native';
 import {colors, getVehicleImage} from '../../../theme';
 import CardGradient from '../../../components/CardGradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const {height} = Dimensions.get('window');
 
@@ -31,6 +31,7 @@ const PARCEL_VEHICLE = {
 const SelectRideScreen = ({navigation, route}: any) => {
   const {pickup, drop, distanceKm, pickupCoords, dropCoords, vehicle} =
     route.params;
+  const insets = useSafeAreaInsets();
 
   const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
 
@@ -85,7 +86,6 @@ const SelectRideScreen = ({navigation, route}: any) => {
               longitudeDelta:
                 Math.abs(pickupCoords.longitude - dropCoords.longitude) * 1.8,
             }}>
-            {/* CartoDB Dark Matter tiles — no API key required */}
             <UrlTile
               urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
               maximumZ={19}
@@ -117,16 +117,16 @@ const SelectRideScreen = ({navigation, route}: any) => {
         )}
       </View>
 
-      <SafeAreaView style={styles.headerOverlay}>
+      <View style={[styles.headerOverlay, { top: Math.max(insets.top, 20) }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
           <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
 
       <View style={styles.overlayContainer}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) + 10 }]}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetEyebrow}>Selected vehicle</Text>
           <Text style={styles.sheetTitle}>Confirm your FLUX</Text>
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
-  headerOverlay: {position: 'absolute', top: 0, left: 20, zIndex: 10},
+  headerOverlay: {position: 'absolute', left: 20, zIndex: 10},
   backButton: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -215,14 +215,13 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.4,
     shadowRadius: 8,
-    marginTop: 20,
   },
   overlayContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: height * 0.58,
+    height: height * 0.65, // Increased from 0.58 to 0.65 to fit content properly
     zIndex: 5,
   },
   sheet: {
@@ -341,7 +340,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 12,
   },
-  footer: {paddingTop: 18, paddingBottom: 28},
+  footer: {paddingTop: 18, paddingBottom: 10},
   confirmBtn: {
     backgroundColor: colors.accent,
     borderRadius: 18,
@@ -384,3 +383,4 @@ const styles = StyleSheet.create({
 });
 
 export default SelectRideScreen;
+
