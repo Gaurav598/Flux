@@ -97,7 +97,14 @@ const RideTrackingScreen = () => {
     try {
       const response = await api.get(`/bookings/${resolvedBookingId}`);
       setBooking(response.data);
-      const nextStatus = String(response.data?.status || 'ACCEPTED') as
+      const status = response.data?.status;
+      if (status === 'CANCELLED_BY_USER' || status === 'CANCELLED') {
+        Alert.alert('Ride Cancelled', 'The user has cancelled the ride.');
+        (navigation as any).replace('Home');
+        return;
+      }
+      
+      const nextStatus = String(status || 'ACCEPTED') as
         | 'ACCEPTED'
         | 'RIDER_EN_ROUTE'
         | 'RIDER_ARRIVED'

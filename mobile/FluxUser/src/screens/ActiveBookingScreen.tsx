@@ -164,17 +164,7 @@ const ActiveBookingScreen = () => {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
         }
-        Alert.alert(
-          'Rider Cancelled',
-          'The rider has cancelled. Finding another rider for you...',
-          [
-            {
-              text: 'OK',
-              onPress: () =>
-                (navigation as any).replace('BidSelection', {bookingId}),
-            },
-          ],
-        );
+        (navigation as any).replace('BidSelection', {bookingId});
       }
     } catch (error) {
       console.log('Error fetching booking:', error);

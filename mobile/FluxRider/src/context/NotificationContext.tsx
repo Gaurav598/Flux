@@ -1,4 +1,4 @@
-import React, {createContext, useContext, useState, useCallback} from 'react';
+import React, {createContext, useContext, useState, useCallback, useRef} from 'react';
 
 export interface Notification {
   id: string;
@@ -22,6 +22,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
 export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({
   children,
 }) => {
+  const seenIds = useRef<Set<string>>(new Set());
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const hideNotification = useCallback((id: string) => {
@@ -32,12 +33,12 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({
     (notification: Notification | Omit<Notification, 'id'>) => {
       const id = 'id' in notification && notification.id ? notification.id : Math.random().toString(36).substring(7);
       
+      if (seenIds.current.has(id)) {
+        return; // Ignore if we've already shown this
+      }
+      seenIds.current.add(id);
+
       setNotifications(prev => {
-        // Deduplicate: if a notification with this ID already exists, don't add it again
-        if (prev.some(n => n.id === id)) {
-          return prev;
-        }
-        
         // Auto hide after 5 seconds for new notifications
         setTimeout(() => {
           hideNotification(id);

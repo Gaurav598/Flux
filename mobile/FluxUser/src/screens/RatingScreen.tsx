@@ -6,6 +6,8 @@ import {
   TextInput,
   Alert,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   Animated,
   ActivityIndicator,
@@ -137,8 +139,9 @@ const RatingScreen = ({navigation, route}: any) => {
 
   return (
     <SafeAreaView className="flex-1" style={{backgroundColor: colors.bg}}>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="px-6 pt-4 pb-10">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1">
+      <View className="flex-1 justify-between px-6 pt-4 pb-6">
+        <View className="flex-1">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             className="p-2.5 rounded-xl border self-start mb-10"
@@ -149,7 +152,7 @@ const RatingScreen = ({navigation, route}: any) => {
             <ArrowLeft size={24} color={colors.text} strokeWidth={2.5} />
           </TouchableOpacity>
 
-          <View className="items-center mb-12">
+          <View className="items-center">
             <View
               className="p-6 rounded-[40px] shadow-2xl mb-8"
               style={{backgroundColor: colors.accent}}>
@@ -166,7 +169,7 @@ const RatingScreen = ({navigation, route}: any) => {
           </View>
 
           <View
-            className="rounded-[40px] p-8 border mb-8"
+            className="rounded-[40px] p-8 border mb-4"
             style={{
               backgroundColor: colors.surface,
               borderColor: colors.border,
@@ -286,7 +289,8 @@ const RatingScreen = ({navigation, route}: any) => {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
