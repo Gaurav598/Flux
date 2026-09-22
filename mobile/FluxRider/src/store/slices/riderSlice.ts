@@ -90,7 +90,8 @@ const riderSlice = createSlice({
       state.currentLocation = action.payload;
     },
     setAvailableBookings: (state, action: PayloadAction<Booking[]>) => {
-      state.availableBookings = action.payload;
+      const biddedIds = new Set(state.myBids.map(bid => bid.bookingId));
+      state.availableBookings = action.payload.filter(b => !biddedIds.has(b.id));
     },
     addAvailableBooking: (state, action: PayloadAction<Booking>) => {
       const exists = state.availableBookings.find(

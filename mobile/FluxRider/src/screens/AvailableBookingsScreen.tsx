@@ -58,6 +58,15 @@ const AvailableBookingsScreen = ({navigation}: any) => {
     return Number.isFinite(num) && Math.abs(num) <= 180;
   };
 
+
+  useEffect(() => {
+    if (availableBookings.length > 0 && currentIndex >= availableBookings.length) {
+      setCurrentIndex(availableBookings.length - 1);
+    } else if (availableBookings.length === 0 && currentIndex !== 0) {
+      setCurrentIndex(0);
+    }
+  }, [availableBookings.length, currentIndex]);
+
   const fetchAvailableBookings = useCallback(
     async (lat?: number, lng?: number) => {
       const latitude = lat || currentLocation?.latitude || 28.6139;
@@ -125,7 +134,6 @@ const AvailableBookingsScreen = ({navigation}: any) => {
           .filter(Boolean);
 
         dispatch(setAvailableBookings(bookings));
-        setCurrentIndex(0);
       } catch (error: any) {
         console.log('Error fetching bookings:', error);
         Alert.alert(
@@ -231,7 +239,6 @@ const AvailableBookingsScreen = ({navigation}: any) => {
       dispatch(addBid(response.data));
       Alert.alert('Success', 'Bid placed successfully!');
       setBidAmount('');
-      handleNext();
     } catch (error: any) {
       Alert.alert(
         'Error',
@@ -249,7 +256,7 @@ const AvailableBookingsScreen = ({navigation}: any) => {
       const response = await api.post(`/bookings/${currentBooking.id}/accept-user-price`);
       Alert.alert('Success', 'You have accepted this ride!');
       dispatch(setAvailableBookings([]));
-      navigation.navigate('ActiveBooking');
+      (navigation as any).replace('RideTracking', { bookingId: currentBooking.id });
     } catch (error: any) {
       Alert.alert(
         'Error',
@@ -655,10 +662,10 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   cardScroll: {
-    maxHeight: 404,
+    maxHeight: 600,
   },
   cardScrollContent: {
-    paddingBottom: 6,
+    paddingBottom: 24,
   },
   bidInputContainer: {
     flex: 1,
