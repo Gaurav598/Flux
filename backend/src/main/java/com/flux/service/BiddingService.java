@@ -69,22 +69,17 @@ public class BiddingService {
 
         Optional<Bid> existingBid = bidRepository.findByBookingIdAndRiderId(bookingId, riderId);
 
-        Bid bid;
         if (existingBid.isPresent()) {
-            bid = existingBid.get();
-            bid.setPreviousBidAmount(bid.getBidAmount());
-            bid.setBidAmount(bidAmount);
-            bid.setIsEdited(true);
-            log.info("Bid updated for booking {} by rider {}", bookingId, riderId);
-        } else {
-            bid = Bid.builder()
-                    .booking(booking)
-                    .rider(rider)
-                    .bidAmount(bidAmount)
-                    .status(BidStatus.PENDING)
-                    .build();
-            log.info("New bid placed for booking {} by rider {}", bookingId, riderId);
+            throw new RuntimeException("You have already submitted a bid for this booking.");
         }
+
+        Bid bid = Bid.builder()
+                .booking(booking)
+                .rider(rider)
+                .bidAmount(bidAmount)
+                .status(BidStatus.PENDING)
+                .build();
+        log.info("New bid placed for booking {} by rider {}", bookingId, riderId);
 
         Bid savedBid = bidRepository.save(bid);
 
@@ -156,6 +151,7 @@ public class BiddingService {
         }
 
         Booking booking = bookingService.acceptBid(bid.getBooking().getId(), bid.getRider().getId());
+        booking.setFinalFare(bid.getBidAmount());
         riderService.updateRiderStatus(bid.getRider().getId(), RiderStatus.ON_RIDE);
 
         // Generate 4-digit OTP for verification

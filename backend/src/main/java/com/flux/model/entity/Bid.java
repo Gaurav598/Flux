@@ -13,7 +13,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bids")
+@Table(name = "bids", uniqueConstraints = {@UniqueConstraint(columnNames = {"booking_id", "rider_id"})})
 @Data
 @Builder
 @NoArgsConstructor

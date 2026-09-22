@@ -97,36 +97,40 @@ const RatingScreen = ({navigation, route}: any) => {
   if (submitted) {
     return (
       <SafeAreaView
-        className="flex-1 items-center justify-center px-10"
+        className="flex-1 px-10"
         style={{backgroundColor: colors.bg}}>
-        <View
-          className="p-10 rounded-[50px] mb-8 border"
-          style={{
-            backgroundColor: colors.successSoft,
-            borderColor: colors.success,
-          }}>
-          <CheckCircle2 size={64} color={colors.success} strokeWidth={2.5} />
-        </View>
-        <Text
-          className="text-3xl font-black text-center mb-4"
-          style={{color: colors.text}}>
-          Feedback Sent!
-        </Text>
-        <Text
-          className="font-bold text-center leading-6 mb-12"
-          style={{color: colors.textMute}}>
-          Your feedback helps us keep the FLUX community safe and reliable.
-        </Text>
-        <TouchableOpacity
-          onPress={goHome}
-          className="w-full py-6 rounded-3xl items-center shadow-xl"
-          style={{backgroundColor: colors.accent}}>
+        <View className="flex-1 items-center justify-center">
+          <View
+            className="p-8 rounded-[40px] mb-6 border"
+            style={{
+              backgroundColor: colors.successSoft,
+              borderColor: colors.success,
+            }}>
+            <CheckCircle2 size={56} color={colors.success} strokeWidth={2.5} />
+          </View>
           <Text
-            className="font-black uppercase tracking-widest"
-            style={{color: colors.onAccent}}>
-            Back to Home
+            className="text-3xl font-black text-center mb-3"
+            style={{color: colors.text}}>
+            Feedback Sent!
           </Text>
-        </TouchableOpacity>
+          <Text
+            className="font-bold text-center leading-6 mb-8"
+            style={{color: colors.textMute}}>
+            Your feedback helps us keep the FLUX community safe and reliable.
+          </Text>
+        </View>
+        <View className="pb-6">
+          <TouchableOpacity
+            onPress={goHome}
+            className="w-full py-5 rounded-3xl items-center shadow-xl"
+            style={{backgroundColor: colors.accent}}>
+            <Text
+              className="font-black uppercase tracking-widest"
+              style={{color: colors.onAccent}}>
+              Back to Home
+            </Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }

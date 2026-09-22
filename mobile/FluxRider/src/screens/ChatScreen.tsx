@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {ArrowLeft, Send, Phone, User} from 'lucide-react-native';
 import api from '../config/api';
@@ -34,6 +35,7 @@ const ChatScreen = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const scrollViewRef = useRef<any>();
 
@@ -94,7 +96,7 @@ const ChatScreen = () => {
   };
 
   return (
-    <SafeAreaView style={{flex: 1, backgroundColor: colors.bg}}>
+    <View style={{flex: 1, backgroundColor: colors.bg, paddingTop: insets.top, paddingBottom: insets.bottom}}>
       <View style={{paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
         <View style={{flexDirection: 'row', alignItems: 'center'}}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={{marginRight: 12}}>
@@ -173,7 +175,7 @@ const ChatScreen = () => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 

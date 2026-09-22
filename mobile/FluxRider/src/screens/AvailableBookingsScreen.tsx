@@ -242,6 +242,24 @@ const AvailableBookingsScreen = ({navigation}: any) => {
     }
   };
 
+  const handleAcceptUserPrice = async () => {
+    if (!currentBooking) return;
+    try {
+      setLoading(true);
+      const response = await api.post(`/bookings/${currentBooking.id}/accept-user-price`);
+      Alert.alert('Success', 'You have accepted this ride!');
+      dispatch(setAvailableBookings([]));
+      navigation.navigate('ActiveBooking');
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to accept booking',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleNext = () => {
     if (availableBookings.length === 0) {
       return;
@@ -509,6 +527,18 @@ const AvailableBookingsScreen = ({navigation}: any) => {
                 <X size={24} color={colors.textSub} />
                 <Text style={styles.skipText}>Skip</Text>
               </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.acceptBtn}
+                onPress={handleAcceptUserPrice}
+                disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.acceptBtnText}>Accept ₹{currentBooking.userAmount}</Text>
+                )}
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.bidBtn}
                 onPress={handlePlaceBid}
@@ -516,10 +546,7 @@ const AvailableBookingsScreen = ({navigation}: any) => {
                 {loading ? (
                   <ActivityIndicator color={colors.onAccent} />
                 ) : (
-                  <>
-                    <Text style={styles.bidBtnText}>Place Bid</Text>
-                    <ChevronRight size={20} color={colors.onAccent} />
-                  </>
+                  <Text style={styles.bidBtnText}>Bid</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -839,7 +866,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     color: colors.onAccent,
+  },
+  acceptBtn: {
+    flex: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.success,
     marginRight: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  acceptBtnText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: colors.white,
   },
   marker: {
     padding: 6,

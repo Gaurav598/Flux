@@ -38,7 +38,7 @@ public class AdminController {
             stats.put("pendingRiders", riderService.getRiderCountByStatus(RiderStatus.PENDING));
             stats.put("todayBookings", bookingService.getTotalBookingsToday());
             stats.put("activeBookings", bookingService.getBookingCountByStatus(BookingStatus.IN_PROGRESS));
-            stats.put("todayRevenue", paymentService.getTotalRevenueToday());
+            stats.put("todayRevenue", bookingService.getTotalRevenueToday());
             
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
@@ -185,7 +185,8 @@ public class AdminController {
             Map<String, Object> analytics = new HashMap<>();
             // All-time counts
             analytics.put("totalBookings", bookingService.getTotalBookingCount());
-            analytics.put("todayRevenue", paymentService.getTotalRevenueToday()); // Stripe disabled, returns 0
+            analytics.put("todayRevenue", bookingService.getTotalRevenueToday());
+            analytics.put("totalRevenue", bookingService.getTotalRevenue());
             analytics.put("activeRiders", riderService.getRiderCountByStatus(RiderStatus.ACTIVE));
             analytics.put("totalUsers", userService.getTotalUserCount());
             analytics.put("totalRiders", userService.getUserCountByRole(com.flux.model.enums.UserRole.RIDER));

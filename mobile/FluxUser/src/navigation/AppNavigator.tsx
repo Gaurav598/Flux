@@ -121,6 +121,7 @@ const NavigationContent = () => {
           return;
         }
         showNotification({
+          id: remoteMessage.data?.notificationId || remoteMessage.messageId || Math.random().toString(36).substring(7),
           title: remoteMessage.notification?.title || 'New Notification',
           body: remoteMessage.notification?.body || '',
           type: 'info',

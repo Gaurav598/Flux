@@ -11,7 +11,7 @@ export interface Notification {
 
 interface NotificationContextType {
   notifications: Notification[];
-  showNotification: (notification: Omit<Notification, 'id'>) => void;
+  showNotification: (notification: Notification | Omit<Notification, 'id'>) => void;
   hideNotification: (id: string) => void;
 }
 
@@ -29,15 +29,23 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({
   }, []);
 
   const showNotification = useCallback(
-    (notification: Omit<Notification, 'id'>) => {
-      const id = Math.random().toString(36).substring(7);
-      const newNotification = {...notification, id};
-      setNotifications(prev => [...prev, newNotification]);
-
-      // Auto hide after 5 seconds
-      setTimeout(() => {
-        hideNotification(id);
-      }, 5000);
+    (notification: Notification | Omit<Notification, 'id'>) => {
+      const id = 'id' in notification && notification.id ? notification.id : Math.random().toString(36).substring(7);
+      
+      setNotifications(prev => {
+        // Deduplicate: if a notification with this ID already exists, don't add it again
+        if (prev.some(n => n.id === id)) {
+          return prev;
+        }
+        
+        // Auto hide after 5 seconds for new notifications
+        setTimeout(() => {
+          hideNotification(id);
+        }, 5000);
+        
+        const newNotification = {...notification, id};
+        return [...prev, newNotification];
+      });
     },
     [hideNotification],
   );

@@ -74,6 +74,8 @@ public class Booking {
     private Integer estimatedDuration;
     private Double estimatedFare;
     private Double finalFare;
+    private Double companyCommission;
+    private Double riderEarning;
     
     @Column(length = 4)
     @JsonProperty("verificationOtp")
@@ -151,6 +153,12 @@ public class Booking {
     
     public Double getFinalFare() { return finalFare; }
     public void setFinalFare(Double finalFare) { this.finalFare = finalFare; }
+    
+    public Double getCompanyCommission() { return companyCommission; }
+    public void setCompanyCommission(Double companyCommission) { this.companyCommission = companyCommission; }
+    
+    public Double getRiderEarning() { return riderEarning; }
+    public void setRiderEarning(Double riderEarning) { this.riderEarning = riderEarning; }
     
     public Double getUserEnteredAmount() { return userEnteredAmount; }
     public void setUserEnteredAmount(Double userEnteredAmount) { this.userEnteredAmount = userEnteredAmount; }

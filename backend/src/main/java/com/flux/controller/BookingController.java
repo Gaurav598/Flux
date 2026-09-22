@@ -157,6 +157,17 @@ public class BookingController {
         }
     }
 
+    @PostMapping("/{id}/accept-user-price")
+    public ResponseEntity<?> acceptUserPrice(@PathVariable Long id, HttpServletRequest request) {
+        try {
+            Long riderId = (Long) request.getAttribute("userId");
+            Booking booking = bookingService.acceptUserPrice(id, riderId);
+            return ResponseEntity.ok(booking);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PostMapping("/{id}/verify-otp")
     public ResponseEntity<?> verifyOtpAndStartRide(@PathVariable Long id, 
                                                     @RequestParam String otp,

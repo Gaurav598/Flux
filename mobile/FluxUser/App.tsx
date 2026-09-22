@@ -1,41 +1,40 @@
 import React from 'react';
-import {ImageBackground, StyleSheet, View} from 'react-native';
+import {StyleSheet, View, ActivityIndicator, StatusBar} from 'react-native';
 import {Provider, useDispatch, useSelector} from 'react-redux';
 import {store, RootState, AppDispatch} from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import {bootstrapAuth} from './src/store/thunks/authThunks';
 import './global.css';
 
-const SPLASH_DURATION_MS = 1000;
-
 const RootGate = () => {
   const dispatch = useDispatch<AppDispatch>();
   const {isInitialized} = useSelector((state: RootState) => state.auth);
-  const [showSplash, setShowSplash] = React.useState(true);
 
   React.useEffect(() => {
     dispatch(bootstrapAuth());
   }, [dispatch]);
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), SPLASH_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (showSplash || !isInitialized) {
+  if (!isInitialized) {
     return (
-      <View style={styles.splashContainer}>
-        <ImageBackground
-          source={require('./screen-load.jpg')}
-          style={styles.splashImage}
-          imageStyle={styles.splashImage}
-          resizeMode="cover"
-        />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#000',
+        }}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <ActivityIndicator size="large" color="#EAB308" />
       </View>
     );
   }
 
-  return <AppNavigator />;
+  return (
+    <>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <AppNavigator />
+    </>
+  );
 };
 
 const App = () => (

@@ -25,6 +25,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     long countByStatus(BookingStatus status);
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
+    @Query("SELECT COALESCE(SUM(b.companyCommission), 0.0) FROM Booking b WHERE b.status = 'COMPLETED' AND b.completedAt BETWEEN :start AND :end")
+    Double sumCompanyCommissionBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     /**
      * Fetch a booking row with a pessimistic write (SELECT FOR UPDATE) lock.
      * Use this inside @Transactional when making atomic status transitions

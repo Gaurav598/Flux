@@ -188,6 +188,70 @@ public class BookingService {
     }
 
     @Transactional
+    public Booking acceptUserPrice(Long bookingId, Long riderId) {
+        // Re-fetch booking with a pessimistic write lock (SELECT FOR UPDATE) to prevent
+        // two concurrent riders from simultaneously passing the BIDDING guard.
+        Booking freshBooking = bookingRepository.findByIdWithLock(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        if (freshBooking.getStatus() != BookingStatus.BIDDING) {
+            throw new RuntimeException("This booking is no longer available — another rider may have already been selected.");
+        }
+
+        List<BookingStatus> activeStatuses = List.of(
+                BookingStatus.ACCEPTED,
+                BookingStatus.RIDER_EN_ROUTE,
+                BookingStatus.RIDER_ARRIVED,
+                BookingStatus.IN_PROGRESS
+        );
+        boolean hasActiveRide = !bookingRepository.findByRiderIdAndStatusIn(riderId, activeStatuses).isEmpty();
+        if (hasActiveRide) {
+            throw new RuntimeException("You already have an active ride. Cannot accept another booking.");
+        }
+
+        Rider rider = riderService.getRiderById(riderId);
+
+        if (!vehicleTypesMatch(freshBooking.getVehicleType(), rider.getVehicleType())) {
+            throw new RuntimeException("This booking requires a " + freshBooking.getVehicleType() + " rider");
+        }
+
+        Double agreedFare = freshBooking.getUserEnteredAmount() != null ? freshBooking.getUserEnteredAmount() : freshBooking.getEstimatedFare();
+
+        freshBooking.setRider(rider);
+        freshBooking.setStatus(BookingStatus.ACCEPTED);
+        freshBooking.setAcceptedAt(LocalDateTime.now());
+        freshBooking.setFinalFare(agreedFare);
+
+        Booking savedBooking = bookingRepository.save(freshBooking);
+        riderService.updateRiderStatus(riderId, com.flux.model.enums.RiderStatus.ON_RIDE);
+
+        // Generate 4-digit OTP for verification
+        String otp = String.format("%04d", (int)(Math.random() * 10000));
+        savedBooking.setVerificationOtp(otp);
+        bookingRepository.save(savedBooking);
+
+        log.info("Booking {} accepted at user price {} by rider {}", bookingId, agreedFare, riderId);
+
+        notificationService.notifyUserWithType(
+                savedBooking.getUser().getId(),
+                "Rider Found",
+                "Rider " + rider.getUser().getFullName() + " accepted your price and is on the way! Your OTP is: " + otp,
+                "OTP_READY",
+                savedBooking.getId()
+        );
+        
+        notificationService.notifyRiderWithType(
+                riderId,
+                "Booking Confirmed",
+                "Navigate to pickup location",
+                "RIDE_ACCEPTED",
+                savedBooking.getId()
+        );
+
+        return savedBooking;
+    }
+
+    @Transactional
     public Booking updateBookingStatus(Long bookingId, BookingStatus status) {
         Booking booking = getBookingById(bookingId);
         booking.setStatus(status);
@@ -394,6 +458,18 @@ public class BookingService {
         return bookingRepository.countByStatus(status);
     }
 
+    public Double getTotalRevenueToday() {
+        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        return bookingRepository.sumCompanyCommissionBetween(startOfDay, endOfDay);
+    }
+
+    public Double getTotalRevenue() {
+        LocalDateTime startOfTime = LocalDateTime.of(2000, 1, 1, 0, 0);
+        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        return bookingRepository.sumCompanyCommissionBetween(startOfTime, endOfDay);
+    }
+
     public long getTotalBookingCount() {
         return bookingRepository.count();
     }
@@ -481,7 +557,18 @@ public class BookingService {
         
         booking.setStatus(BookingStatus.COMPLETED);
         booking.setCompletedAt(LocalDateTime.now());
-        booking.setFinalFare(booking.getEstimatedFare());
+        
+        // Calculate 4% company commission and 96% rider earning
+        if (booking.getFinalFare() != null) {
+            java.math.BigDecimal fare = java.math.BigDecimal.valueOf(booking.getFinalFare());
+            java.math.BigDecimal commissionRate = java.math.BigDecimal.valueOf(0.04);
+            java.math.BigDecimal companyCommission = fare.multiply(commissionRate)
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            java.math.BigDecimal riderEarning = fare.subtract(companyCommission);
+            
+            booking.setCompanyCommission(companyCommission.doubleValue());
+            booking.setRiderEarning(riderEarning.doubleValue());
+        }
         
         // Update rider statistics
         userService.incrementBookingCount(booking.getUser().getId());
