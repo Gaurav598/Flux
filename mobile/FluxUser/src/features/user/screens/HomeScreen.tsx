@@ -21,6 +21,7 @@ import MapView, {
   UrlTile,
   Region,
 } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
   getMapVehicle,
@@ -82,6 +83,7 @@ const HomeScreen = ({navigation}: any) => {
   const collapsedSheetOffset =
     maxSheetHeight - height * COLLAPSED_SHEET_VISIBLE_RATIO;
   const {user} = useSelector((s: RootState) => s.auth);
+  const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const watchIdRef = useRef<number | null>(null);
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -585,7 +587,7 @@ const HomeScreen = ({navigation}: any) => {
         )}
 
         {/* Header overlay on map */}
-        <View style={styles.headerOverlay}>
+        <View style={[styles.headerOverlay, { top: Math.max(insets.top + 10, 40) }]}>
           <TouchableOpacity
             style={styles.profileBtn}
             onPress={() => navigation.navigate('Profile')}>
@@ -610,7 +612,7 @@ const HomeScreen = ({navigation}: any) => {
 
         {activeBooking?.id ? (
           <TouchableOpacity
-            style={styles.ongoingRideBtn}
+            style={[styles.ongoingRideBtn, { top: Math.max(insets.top + 10, 40) + 68 }]}
             onPress={() =>
               navigation.navigate('UserTracking', {
                 rideId: String(activeBooking.id),
@@ -622,7 +624,7 @@ const HomeScreen = ({navigation}: any) => {
         ) : null}
 
         {/* Map action buttons — bottom right */}
-        <View style={styles.mapActions}>
+        <View style={[styles.mapActions, { bottom: Math.max(insets.bottom + 16, 16) }]}>
           {/* Toggle pickup mode button */}
           <TouchableOpacity
             style={[
@@ -658,7 +660,11 @@ const HomeScreen = ({navigation}: any) => {
       <Animated.View
         style={[
           styles.sheet,
-          {height: maxSheetHeight, transform: [{translateY: sheetTranslateY}]},
+          {
+            height: maxSheetHeight, 
+            transform: [{translateY: sheetTranslateY}],
+            paddingBottom: Math.max(insets.bottom, 16)
+          },
         ]}>
         <CardGradient radius={32} />
         <View {...sheetPanResponder.panHandlers} style={styles.sheetDragZone}>

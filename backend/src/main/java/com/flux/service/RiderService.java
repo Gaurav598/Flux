@@ -236,17 +236,17 @@ public class RiderService {
 
         double earningsToday = completedBookings.stream()
                 .filter(b -> b.getUpdatedAt().isAfter(startOfDay))
-                .mapToDouble(b -> b.getFinalFare() != null ? b.getFinalFare() : 0.0)
+                .mapToDouble(b -> b.getRiderEarning() != null ? b.getRiderEarning() : (b.getFinalFare() != null ? b.getFinalFare() * 0.96 : 0.0))
                 .sum();
 
         double earningsWeek = completedBookings.stream()
                 .filter(b -> b.getUpdatedAt().isAfter(startOfWeek))
-                .mapToDouble(b -> b.getFinalFare() != null ? b.getFinalFare() : 0.0)
+                .mapToDouble(b -> b.getRiderEarning() != null ? b.getRiderEarning() : (b.getFinalFare() != null ? b.getFinalFare() * 0.96 : 0.0))
                 .sum();
 
         double earningsMonth = completedBookings.stream()
                 .filter(b -> b.getUpdatedAt().isAfter(startOfMonth))
-                .mapToDouble(b -> b.getFinalFare() != null ? b.getFinalFare() : 0.0)
+                .mapToDouble(b -> b.getRiderEarning() != null ? b.getRiderEarning() : (b.getFinalFare() != null ? b.getFinalFare() * 0.96 : 0.0))
                 .sum();
 
         Map<String, Object> stats = new HashMap<>();
@@ -269,7 +269,7 @@ public class RiderService {
                     transaction.put("id", booking.getId());
                     transaction.put("bookingId", booking.getId());
                     transaction.put("type", "credit");
-                    transaction.put("amount", booking.getFinalFare() != null ? booking.getFinalFare() : 0.0);
+                    transaction.put("amount", booking.getRiderEarning() != null ? booking.getRiderEarning() : (booking.getFinalFare() != null ? booking.getFinalFare() * 0.96 : 0.0));
                     transaction.put("title", "Ride Earning");
                     transaction.put("description", booking.getServiceType() + " - " + booking.getPickupAddress());
                     transaction.put("subtitle", "Booking #" + booking.getId());
