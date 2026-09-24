@@ -10,6 +10,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {X, Bell, CheckCircle, AlertCircle} from 'lucide-react-native';
 import {useNotification} from '../context/NotificationContext';
 import {colors} from '../theme';
+import CardGradient from './CardGradient';
 
 const NotificationItem: React.FC<{
   id: string;
@@ -68,7 +69,7 @@ const NotificationItem: React.FC<{
   };
 
   const getBgColor = () => {
-    return colors.surface;
+    return colors.surfaceAlt;
   };
 
   const getBorderColor = () => {
@@ -89,12 +90,15 @@ const NotificationItem: React.FC<{
       style={[
         styles.container,
         {
-          backgroundColor: getBgColor(),
+          backgroundColor: colors.bg,
           borderColor: getBorderColor(),
           transform: [{translateY}],
           opacity,
         },
       ]}>
+      <View style={StyleSheet.absoluteFill}>
+         <CardGradient radius={16} />
+      </View>
       <TouchableOpacity
         style={styles.tapArea}
         activeOpacity={0.85}
@@ -163,11 +167,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 16,
     borderWidth: 1,
-    shadowColor: '#000',
+    shadowColor: colors.accent,
     shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 10,
     marginBottom: 10,
   },
   tapArea: {
