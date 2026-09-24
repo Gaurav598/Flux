@@ -4,7 +4,10 @@ import com.flux.model.entity.Booking;
 import com.flux.model.entity.Rider;
 import com.flux.repository.BookingRepository;
 import com.flux.repository.RiderRepository;
+import com.flux.repository.UserRepository;
 import com.flux.security.JwtUtil;
+import com.flux.model.entity.User;
+import com.flux.model.enums.AccountStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +25,8 @@ import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.context.annotation.Bean;
 
 import java.util.List;
 
@@ -33,14 +38,26 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final JwtUtil jwtUtil;
     private final RiderRepository riderRepository;
     private final BookingRepository bookingRepository;
+    private final UserRepository userRepository;
 
     @Value("${app.security.allowed-origins:http://localhost:3001,http://127.0.0.1:3001}")
     private String allowedOrigins;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic", "/queue");
+        config.enableSimpleBroker("/topic", "/queue")
+                .setHeartbeatValue(new long[]{10_000, 10_000})
+                .setTaskScheduler(webSocketTaskScheduler());
         config.setApplicationDestinationPrefixes("/app");
+    }
+
+    @Bean
+    public ThreadPoolTaskScheduler webSocketTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("flux-ws-heartbeat-");
+        scheduler.setRemoveOnCancelPolicy(true);
+        return scheduler;
     }
 
     @Override
@@ -51,6 +68,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         .filter(origin -> !origin.isBlank())
                         .toArray(String[]::new))
                 .withSockJS();
+        registry.addEndpoint("/ws-native")
+                .setAllowedOrigins(java.util.Arrays.stream(allowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isBlank())
+                        .toArray(String[]::new));
     }
 
     @Override
@@ -84,11 +106,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         String token = header.substring(7);
         try {
             String mobileNumber = jwtUtil.extractMobileNumber(token);
-            if (!jwtUtil.validateToken(token, mobileNumber)) {
+            if (!jwtUtil.validateToken(token, mobileNumber) || !jwtUtil.isAccessToken(token)) {
                 throw new AccessDeniedException("Invalid WebSocket token");
             }
             String role = jwtUtil.extractRole(token);
             Long userId = jwtUtil.extractUserId(token);
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new AccessDeniedException("WebSocket account not found"));
+            if (user.getStatus() != AccountStatus.ACTIVE
+                    || !user.getMobileNumber().equals(mobileNumber)
+                    || !user.getRole().name().equals(role)) {
+                throw new AccessDeniedException("WebSocket account is no longer authorized");
+            }
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             mobileNumber,
@@ -140,7 +169,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 return;
             }
         }
-        if ("booking".equals(parts[2]) && "bids".equals(parts[4])) {
+        if ("booking".equals(parts[2])
+                && List.of("bids", "status", "location", "chat").contains(parts[4])) {
             Booking booking = bookingRepository.findById(resourceId)
                     .orElseThrow(() -> new AccessDeniedException("Booking not found"));
             boolean owner = booking.getUser().getId().equals(userId);

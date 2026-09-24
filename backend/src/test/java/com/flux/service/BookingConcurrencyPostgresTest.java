@@ -72,6 +72,7 @@ class BookingConcurrencyPostgresTest {
 
     @MockBean NotificationService notificationService;
     @MockBean SimpMessagingTemplate messagingTemplate;
+    @MockBean RealtimeEventService realtimeEventService;
 
     @BeforeEach
     void cleanDatabase() {

@@ -1,5 +1,20 @@
 # Flux regression test report
 
+## Engineering-upgrade integration verification — 25 September 2026
+
+Branch: `codex/flux-engineering-upgrade-integration` (based on stabilization commit `7ab4398`)
+
+| Component | Command | Result | Actual evidence |
+|---|---|---:|---|
+| Backend tests | `cd backend && ./gradlew test --rerun-tasks --no-daemon` | PASS with skips | 25 tests discovered: 21 booking/state/security/notification/payment tests passed; 4 PostgreSQL Testcontainers concurrency tests skipped because Docker is unavailable. |
+| FluxUser | `npx tsc --noEmit && npm test -- --runInBand` | PASS | TypeScript passed; 4 suites / 7 tests passed, including realtime reconnect behavior. |
+| FluxRider | `npx tsc --noEmit && npm test -- --runInBand` | PASS | TypeScript passed; 4 suites / 8 tests passed, including realtime reconnect behavior. |
+| Admin | `npm run build` | PASS with warning | 2,566 modules built; output JS 676.23 kB (197.25 kB gzip). Vite reported the existing chunk-size warning. |
+| Compose | development and production `docker compose ... config --quiet` | PASS | Both configurations parsed with inert placeholder environment/TLS values; containers were not started. |
+| Diff hygiene | `git diff --check` | PASS | No whitespace errors. |
+
+Physical-device flows, Firebase/provider calls, Docker-backed contention, container startup, and production deployment remain unverified. The detailed table below records the stabilization-run evidence and is intentionally preserved.
+
 Date: 24 September 2026
 
 Branch: `codex/release-stabilization-2026-09-23`

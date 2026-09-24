@@ -158,6 +158,27 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <div className="mt-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-5">
+          <AlertCircle className="w-4 h-4 text-orange-400" />
+          <h2 className="text-sm font-semibold text-zinc-300">Operational visibility</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            ['Failed bookings', stats.failedBookings ?? 0, 'text-red-400'],
+            ['User cancellations', stats.cancelledByUsers ?? 0, 'text-orange-400'],
+            ['Rider cancellations', stats.cancelledByRiders ?? 0, 'text-yellow-400'],
+            ['Available riders', stats.availableRiders ?? 0, 'text-emerald-400'],
+            ['Stale rider locations', stats.staleAvailableRiders ?? 0, 'text-violet-400'],
+          ].map(([label, value, color]) => (
+            <div key={String(label)} className="rounded-xl bg-zinc-800/60 p-4">
+              <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
+              <p className={`mt-2 text-xl font-bold ${color}`}>{Number(value).toLocaleString()}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

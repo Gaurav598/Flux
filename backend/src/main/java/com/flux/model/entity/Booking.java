@@ -108,6 +108,7 @@ public class Booking {
     private LocalDateTime biddingEndTime;
     
     private LocalDateTime acceptedAt;
+    private LocalDateTime riderEnRouteAt;
     private LocalDateTime riderArrivedAt;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
@@ -190,6 +191,9 @@ public class Booking {
     
     public LocalDateTime getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+
+    public LocalDateTime getRiderEnRouteAt() { return riderEnRouteAt; }
+    public void setRiderEnRouteAt(LocalDateTime riderEnRouteAt) { this.riderEnRouteAt = riderEnRouteAt; }
     
     public LocalDateTime getRiderArrivedAt() { return riderArrivedAt; }
     public void setRiderArrivedAt(LocalDateTime riderArrivedAt) { this.riderArrivedAt = riderArrivedAt; }

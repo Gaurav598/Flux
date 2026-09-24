@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public class JwtUtil {
@@ -26,7 +27,7 @@ public class JwtUtil {
     private Long refreshExpiration;
 
     private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(secret.getBytes());
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String extractMobileNumber(String token) {
@@ -58,6 +59,7 @@ public class JwtUtil {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         claims.put("userId", userId);
+        claims.put("tokenType", "access");
         return createToken(claims, mobileNumber, expiration);
     }
 
@@ -65,6 +67,7 @@ public class JwtUtil {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         claims.put("userId", userId);
+        claims.put("tokenType", "refresh");
         return createToken(claims, mobileNumber, refreshExpiration);
     }
 
@@ -91,5 +94,13 @@ public class JwtUtil {
     public Long extractUserId(String token) {
         Claims claims = extractAllClaims(token);
         return claims.get("userId", Long.class);
+    }
+
+    public boolean isAccessToken(String token) {
+        return "access".equals(extractAllClaims(token).get("tokenType", String.class));
+    }
+
+    public boolean isRefreshToken(String token) {
+        return "refresh".equals(extractAllClaims(token).get("tokenType", String.class));
     }
 }

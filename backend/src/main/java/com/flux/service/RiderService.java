@@ -26,6 +26,7 @@ public class RiderService {
     private final RiderRepository riderRepository;
     private final UserService userService;
     private final BookingRepository bookingRepository;
+    private final RealtimeEventService realtimeEventService;
 
     /**
      * Get existing rider profile or create a basic one for a user.
@@ -212,6 +213,11 @@ public class RiderService {
         rider.setCurrentLongitude(longitude);
         rider.setLastLocationUpdate(now);
         riderRepository.save(rider);
+        bookingRepository.findFirstByRiderIdAndStatusInOrderByUpdatedAtDesc(
+                        riderId,
+                        List.of(BookingStatus.ACCEPTED, BookingStatus.RIDER_EN_ROUTE,
+                                BookingStatus.RIDER_ARRIVED, BookingStatus.IN_PROGRESS))
+                .ifPresent(booking -> realtimeEventService.publishLocationAfterCommit(booking, rider));
     }
 
     @Transactional
@@ -356,6 +362,10 @@ public class RiderService {
 
     public long getOnlineRiderCount() {
         return riderRepository.countByStatusIn(List.of(RiderStatus.AVAILABLE, RiderStatus.ON_RIDE));
+    }
+
+    public long getStaleAvailableRiderCount() {
+        return riderRepository.countStaleByStatus(RiderStatus.AVAILABLE, LocalDateTime.now().minusSeconds(30));
     }
 
     public List<Rider> getAllRidersWithFilters(RiderStatus status, String search, String location) {

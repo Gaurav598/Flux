@@ -156,6 +156,7 @@ public class RiderController {
     }
 
     @GetMapping("/{riderId}/location")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getRiderLocation(@PathVariable Long riderId) {
         try {
             Rider rider = riderService.getRiderById(riderId);

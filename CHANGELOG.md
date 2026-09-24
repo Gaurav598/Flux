@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased — release stabilization (24 September 2026)
+## Release stabilization baseline — 24 September 2026 (`7ab4398`)
 
-This section describes the current uncommitted stabilization diff from baseline `888474f`. Git does not provide enough authorship metadata to divide every recovered line between the interrupted runs, so the lists distinguish recovered stabilization work from additions completed in the final continuation where evidence is clear.
+This historical section describes the committed stabilization diff from baseline `888474f`. It is retained for context and is not attributed to the engineering-upgrade continuation below.
 
 ### Recovered and completed stabilization work
 
@@ -64,3 +64,31 @@ This section describes the current uncommitted stabilization diff from baseline 
 - Production provider/TLS/database smoke testing and deployment; no production mutation was authorized.
 - Durable cross-process notification history and a financial-column migration from `Double` to decimal/minor-unit representation.
 - Dashboard code splitting and non-error mobile lint warning cleanup.
+# Engineering upgrade integration — 2026-09-25
+
+Built on the completed release-stabilization commit `7ab4398`; the items below are continuation changes only.
+
+## Added
+
+- Typed access/refresh JWT enforcement and current-account revalidation.
+- Canonical Firebase phone verification plus bounded OTP send/verify attempts.
+- Authenticated native STOMP endpoint, 10-second heartbeats, after-commit status/location events, event IDs, and version ordering.
+- React Native STOMP clients with exponential reconnect, jitter, duplicate suppression, and REST reconciliation.
+- Paginated customer/rider trip history, persisted lifecycle timelines, cancellation context, and participant-scoped location freshness.
+- A forward-only migration for the persisted rider-en-route timeline timestamp.
+- Admin operational metrics for failures, cancellations, available riders, and stale locations.
+- Focused JWT, notification ownership, timeline, freshness, expiry, cancellation, and reconnect tests.
+- `ENGINEERING_UPGRADE_REPORT.md`, `ARCHITECTURE.md`, `API_AND_REALTIME_REFERENCE.md`, and `MANUAL_TESTING_GUIDE.md`.
+
+## Changed
+
+- Notification read operations now enforce ownership.
+- Demo/free subscriptions are idempotent; confirmation cannot create a missing server-side activation.
+- Disabled Stripe webhooks fail explicitly rather than acknowledging unverified payloads.
+- Customer/rider tracking keeps a 30-second reconciliation poll while realtime is connected.
+
+## Security
+
+- Removed deterministic fixed-OTP generation for newly created users.
+- Refresh tokens are rejected by HTTP/STOMP resource authentication, and access tokens are rejected by refresh.
+- Rider location REST access is booking-participant scoped; the legacy rider-ID endpoint is admin-only.

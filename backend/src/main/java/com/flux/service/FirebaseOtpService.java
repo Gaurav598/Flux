@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +34,16 @@ public class FirebaseOtpService {
     private RestTemplate restTemplate;
 
     private final Map<String, OtpSession> pendingSessions = new ConcurrentHashMap<>();
-    private final Map<String, String> idTokenToPhoneMap = new ConcurrentHashMap<>();
+    private final Map<String, AttemptWindow> sendAttempts = new ConcurrentHashMap<>();
+
+    @Value("${firebase.max-send-attempts:5}")
+    private int maxSendAttempts;
+
+    @Value("${firebase.send-window-seconds:900}")
+    private long sendWindowSeconds;
+
+    @Value("${firebase.max-verify-attempts:5}")
+    private int maxVerifyAttempts;
 
     private RestTemplate restTemplate() {
         if (restTemplate == null) {
@@ -48,7 +58,9 @@ public class FirebaseOtpService {
                 throw new IllegalArgumentException("recaptchaToken is required");
             }
 
-            log.info("Initiating phone sign-in for: {}", phoneNumber);
+            enforceSendRateLimit(phoneNumber);
+
+            log.info("Initiating phone sign-in for {}", maskPhone(phoneNumber));
 
             Map<String, String> payload = Map.of(
                     "phoneNumber", phoneNumber,
@@ -69,7 +81,8 @@ public class FirebaseOtpService {
             }
 
             String sessionInfoId = UUID.randomUUID().toString();
-            pendingSessions.put(sessionInfoId, new OtpSession(sessionInfo, Instant.now().plusSeconds(sessionTtlSeconds)));
+            pendingSessions.put(sessionInfoId, new OtpSession(
+                    sessionInfo, Instant.now().plusSeconds(sessionTtlSeconds), new AtomicInteger()));
 
             return sessionInfoId;
         } catch (Exception e) {
@@ -86,9 +99,14 @@ public class FirebaseOtpService {
             throw new IllegalArgumentException("OTP must be a 6-digit value");
         }
 
-        OtpSession session = pendingSessions.remove(sessionInfoId);
+        OtpSession session = pendingSessions.get(sessionInfoId);
         if (session == null || Instant.now().isAfter(session.expiresAt())) {
+            pendingSessions.remove(sessionInfoId);
             throw new IllegalStateException("OTP session expired or invalid");
+        }
+        if (session.attempts().incrementAndGet() > maxVerifyAttempts) {
+            pendingSessions.remove(sessionInfoId);
+            throw new IllegalStateException("Too many OTP verification attempts");
         }
 
         try {
@@ -105,21 +123,17 @@ public class FirebaseOtpService {
 
             Map body = response.getBody();
             String idToken = body != null ? (String) body.get("idToken") : null;
-            String phoneNumber = body != null ? (String) body.get("phoneNumber") : null;
             
             if (idToken == null) {
                 throw new IllegalStateException("Firebase did not return an ID token");
             }
             
-            // Store phone number for this ID token since Firebase doesn't include it in claims
-            if (phoneNumber != null) {
-                idTokenToPhoneMap.put(idToken, phoneNumber);
-            }
-
-            return verifyIdToken(idToken);
+            String verifiedPhone = verifyIdToken(idToken);
+            pendingSessions.remove(sessionInfoId);
+            return verifiedPhone;
         } catch (Exception e) {
             log.error("Failed to verify OTP session: {}", e.getMessage());
-            throw new RuntimeException("Failed to verify OTP: " + e.getMessage());
+            throw new RuntimeException("Failed to verify OTP");
         }
     }
 
@@ -132,26 +146,18 @@ public class FirebaseOtpService {
             var decodedToken = firebaseAuth.verifyIdToken(idToken);
             String uid = decodedToken.getUid();
             
-            // If phone number provided in request, use it
-            if (phoneNumber != null && !phoneNumber.isBlank()) {
-                log.info("Firebase token verified for phone: {}, UID: {}", phoneNumber, uid);
-                return phoneNumber;
+            String verifiedPhone = (String) decodedToken.getClaims().get("phone_number");
+            if (verifiedPhone == null || verifiedPhone.isBlank()) {
+                verifiedPhone = firebaseAuth.getUser(uid).getPhoneNumber();
             }
-            
-            // Try to get phone number from stored map (from OTP verification)
-            phoneNumber = idTokenToPhoneMap.remove(idToken);
-            
-            // If not found in map, try to get from claims (for direct Firebase auth)
-            if (phoneNumber == null) {
-                phoneNumber = (String) decodedToken.getClaims().get("phone_number");
-            }
-            
-            if (phoneNumber == null) {
+            if (verifiedPhone == null || verifiedPhone.isBlank()) {
                 throw new IllegalStateException("Phone number not found in token or claims");
             }
-            
-            log.info("Firebase token verified for phone: {}, UID: {}", phoneNumber, uid);
-            return phoneNumber;
+            if (phoneNumber != null && !phoneNumber.isBlank() && !verifiedPhone.equals(phoneNumber)) {
+                throw new IllegalArgumentException("Phone number does not match the verified Firebase identity");
+            }
+            log.info("Firebase token verified for {}", maskPhone(verifiedPhone));
+            return verifiedPhone;
         } catch (FirebaseAuthException e) {
             log.error("Failed to verify Firebase token: {}", e.getMessage());
             throw new RuntimeException("Invalid Firebase token: " + e.getMessage());
@@ -170,5 +176,25 @@ public class FirebaseOtpService {
         }
     }
 
-    private record OtpSession(String sessionInfo, Instant expiresAt) { }
+    private void enforceSendRateLimit(String phoneNumber) {
+        Instant now = Instant.now();
+        AttemptWindow window = sendAttempts.compute(phoneNumber, (key, existing) -> {
+            if (existing == null || now.isAfter(existing.startedAt().plusSeconds(sendWindowSeconds))) {
+                return new AttemptWindow(now, new AtomicInteger(1));
+            }
+            existing.attempts().incrementAndGet();
+            return existing;
+        });
+        if (window.attempts().get() > maxSendAttempts) {
+            throw new IllegalStateException("Too many OTP requests. Please try again later.");
+        }
+    }
+
+    private String maskPhone(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.length() < 4) return "***";
+        return "***" + phoneNumber.substring(phoneNumber.length() - 4);
+    }
+
+    private record OtpSession(String sessionInfo, Instant expiresAt, AtomicInteger attempts) { }
+    private record AttemptWindow(Instant startedAt, AtomicInteger attempts) { }
 }

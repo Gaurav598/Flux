@@ -194,6 +194,11 @@ public class AdminController {
             analytics.put("todayBookings", bookingService.getTotalBookingsToday());
             analytics.put("pendingRiders", riderService.getRiderCountByStatus(RiderStatus.PENDING));
             analytics.put("dailyBookings", bookingService.getDailyBookingCounts(days));
+            analytics.put("cancelledByUsers", bookingService.getBookingCountByStatus(BookingStatus.CANCELLED_BY_USER));
+            analytics.put("cancelledByRiders", bookingService.getBookingCountByStatus(BookingStatus.CANCELLED_BY_RIDER));
+            analytics.put("failedBookings", bookingService.getBookingCountByStatus(BookingStatus.NO_RIDERS_AVAILABLE));
+            analytics.put("availableRiders", riderService.getRiderCountByStatus(RiderStatus.AVAILABLE));
+            analytics.put("staleAvailableRiders", riderService.getStaleAvailableRiderCount());
             return ResponseEntity.ok(analytics);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

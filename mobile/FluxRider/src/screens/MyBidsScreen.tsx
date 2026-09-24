@@ -29,13 +29,17 @@ const MyBidsScreen = ({navigation}: any) => {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
+  const [tripHistory, setTripHistory] = useState<any[]>([]);
+  const [expandedTripId, setExpandedTripId] = useState<number | null>(null);
+  const [timelines, setTimelines] = useState<Record<number, any[]>>({});
 
   const fetchMyBids = async () => {
     setLoading(true);
     try {
-      const [bidsResponse, activeResponse] = await Promise.allSettled([
+      const [bidsResponse, activeResponse, historyResponse] = await Promise.allSettled([
         api.get('/rider/my-bids'),
         api.get('/bookings/rider/active'),
+        api.get('/bookings/rider/history', {params: {page: 0, size: 20}}),
       ]);
 
       if (bidsResponse.status === 'fulfilled') {
@@ -50,6 +54,9 @@ const MyBidsScreen = ({navigation}: any) => {
       } else {
         setActiveBookingId(null);
       }
+      if (historyResponse.status === 'fulfilled') {
+        setTripHistory(historyResponse.value.data?.content || []);
+      }
     } catch (error) {
       console.log('Error fetching bids:', error);
     } finally {
@@ -60,6 +67,14 @@ const MyBidsScreen = ({navigation}: any) => {
   useEffect(() => {
     fetchMyBids();
   }, []);
+
+  const toggleTripTimeline = async (bookingId: number) => {
+    setExpandedTripId(current => (current === bookingId ? null : bookingId));
+    if (!timelines[bookingId]) {
+      const response = await api.get(`/bookings/${bookingId}/timeline`);
+      setTimelines(current => ({...current, [bookingId]: response.data || []}));
+    }
+  };
 
   const getServiceInfo = (type: string) => {
     switch (type?.toLowerCase()) {
@@ -223,6 +238,48 @@ const MyBidsScreen = ({navigation}: any) => {
               style={styles.browseBtn}>
               <Text style={styles.browseBtnText}>Browse Requests</Text>
             </TouchableOpacity>
+          </View>
+        }
+        ListFooterComponent={
+          <View style={{marginTop: 24}}>
+            <Text style={{fontSize: 20, fontWeight: '900', color: colors.text, marginBottom: 14}}>
+              Trip history
+            </Text>
+            {tripHistory.length === 0 ? (
+              <Text style={{color: colors.textMute, fontWeight: '700'}}>No assigned trips yet.</Text>
+            ) : (
+              tripHistory.map((trip: any) => (
+                <TouchableOpacity
+                  key={trip.id}
+                  onPress={() => void toggleTripTimeline(trip.id)}
+                  style={{backgroundColor: colors.surfaceAlt, borderColor: colors.border, borderWidth: 1, borderRadius: 20, padding: 16, marginBottom: 12}}>
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                    <Text style={{color: colors.text, fontWeight: '900'}}>Booking #{trip.id}</Text>
+                    <Text style={{color: trip.status === 'COMPLETED' ? colors.success : colors.danger, fontWeight: '900', fontSize: 11}}>
+                      {trip.status}
+                    </Text>
+                  </View>
+                  <Text style={{color: colors.textSub, marginTop: 6}} numberOfLines={1}>
+                    {trip.pickupAddress} → {trip.dropAddress}
+                  </Text>
+                  <Text style={{color: colors.accent, fontWeight: '900', marginTop: 6}}>
+                    ₹{trip.riderEarning ?? trip.finalFare ?? trip.estimatedFare ?? 0}
+                  </Text>
+                  {trip.cancellationReason && (
+                    <Text style={{color: colors.danger, marginTop: 6}}>Cancellation: {trip.cancellationReason}</Text>
+                  )}
+                  {expandedTripId === trip.id && (
+                    <View style={{borderTopColor: colors.border, borderTopWidth: 1, marginTop: 12, paddingTop: 10}}>
+                      {(timelines[trip.id] || []).map((event: any) => (
+                        <Text key={`${event.type}-${event.occurredAt}`} style={{color: colors.textSub, marginBottom: 6}}>
+                          • {event.label} · {new Date(event.occurredAt).toLocaleString()}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         }
         contentContainerStyle={styles.listContent}

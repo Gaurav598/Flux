@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
@@ -21,24 +21,55 @@ import {
 } from 'lucide-react-native';
 
 const MyBookingsScreen = ({navigation}: any) => {
-  const [bookings, setBookings] = useState([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const hasMoreRef = useRef(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [timelines, setTimelines] = useState<Record<number, any[]>>({});
 
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async (nextPage = 0) => {
+    if (nextPage > 0 && !hasMoreRef.current) return;
     setLoading(true);
     try {
-      const response = await api.get('/bookings/user/my-bookings');
-      setBookings(response.data);
+      const response = await api.get('/bookings/user/history', {
+        params: {page: nextPage, size: 20},
+      });
+      const content = response.data?.content || [];
+      setBookings(current => (nextPage === 0 ? content : [...current, ...content]));
+      setPage(nextPage);
+      const moreAvailable = !response.data?.last;
+      hasMoreRef.current = moreAvailable;
+      setHasMore(moreAvailable);
     } catch (error) {
       console.log('Error fetching bookings:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchBookings();
-  }, []);
+    void fetchBookings(0);
+  }, [fetchBookings]);
+
+  const openBooking = async (item: any) => {
+    if (['ACCEPTED', 'RIDER_EN_ROUTE', 'RIDER_ARRIVED', 'IN_PROGRESS'].includes(item.status)) {
+      navigation.navigate('UserTracking', {
+        rideId: item.id,
+        rider: item.rider,
+        from: item.pickupAddress,
+        to: item.dropAddress,
+        maxFare: item.finalFare || item.estimatedFare,
+      });
+      return;
+    }
+    setExpandedId(current => (current === item.id ? null : item.id));
+    if (!timelines[item.id]) {
+      const response = await api.get(`/bookings/${item.id}/timeline`);
+      setTimelines(current => ({...current, [item.id]: response.data || []}));
+    }
+  };
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -48,11 +79,17 @@ const MyBookingsScreen = ({navigation}: any) => {
         return {color: '#3B82F6', icon: AlertCircle, label: 'Bidding'};
       case 'ACCEPTED':
         return {color: '#10B981', icon: CheckCircle2, label: 'Accepted'};
+      case 'RIDER_EN_ROUTE':
+        return {color: '#3B82F6', icon: Clock, label: 'Rider en route'};
+      case 'RIDER_ARRIVED':
+        return {color: '#8B5CF6', icon: CheckCircle2, label: 'Rider arrived'};
       case 'IN_PROGRESS':
         return {color: '#8B5CF6', icon: CheckCircle2, label: 'En Route'};
       case 'COMPLETED':
         return {color: '#059669', icon: CheckCircle2, label: 'Completed'};
       case 'CANCELLED':
+      case 'CANCELLED_BY_USER':
+      case 'CANCELLED_BY_RIDER':
         return {color: '#EF4444', icon: XCircle, label: 'Cancelled'};
       default:
         return {color: '#6B7280', icon: AlertCircle, label: status};
@@ -66,17 +103,7 @@ const MyBookingsScreen = ({navigation}: any) => {
         activeOpacity={0.7}
         className="rounded-[32px] p-6 mb-4 shadow-sm shadow-black/5 overflow-hidden"
         style={{backgroundColor: 'transparent'}}
-        onPress={() => {
-          if (item.status === 'IN_PROGRESS' || item.status === 'ACCEPTED') {
-            navigation.navigate('UserTracking', {
-              rideId: item.id,
-              rider: item.rider,
-              from: item.pickupAddress,
-              to: item.dropAddress,
-              maxFare: item.finalFare || item.estimatedFare,
-            });
-          }
-        }}>
+        onPress={() => void openBooking(item)}>
         <CardGradient radius={32} />
         <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center">
@@ -159,6 +186,27 @@ const MyBookingsScreen = ({navigation}: any) => {
           </View>
           <ChevronRight size={20} color={colors.textMute} strokeWidth={3} />
         </View>
+        {item.cancellationReason && (
+          <Text style={{color: colors.danger, marginTop: 12, fontWeight: '700'}}>
+            Cancellation: {item.cancellationReason}
+          </Text>
+        )}
+        {expandedId === item.id && (
+          <View style={{marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12}}>
+            <Text style={{color: colors.text, fontWeight: '900', marginBottom: 8}}>Ride timeline</Text>
+            {(timelines[item.id] || []).map((event: any, index: number) => (
+              <View key={`${event.type}-${event.occurredAt}`} style={{flexDirection: 'row', marginBottom: 8}}>
+                <Text style={{color: index === (timelines[item.id] || []).length - 1 ? colors.accent : colors.textMute, marginRight: 8}}>●</Text>
+                <View>
+                  <Text style={{color: colors.textSub, fontWeight: '700'}}>{event.label}</Text>
+                  <Text style={{color: colors.textMute, fontSize: 11}}>
+                    {new Date(event.occurredAt).toLocaleString()}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -183,7 +231,7 @@ const MyBookingsScreen = ({navigation}: any) => {
         refreshControl={
           <RefreshControl
             refreshing={loading}
-            onRefresh={fetchBookings}
+            onRefresh={() => void fetchBookings(0)}
             tintColor={colors.accent}
           />
         }
@@ -211,6 +259,8 @@ const MyBookingsScreen = ({navigation}: any) => {
           </View>
         }
         contentContainerStyle={{padding: 24}}
+        onEndReached={() => !loading && hasMore && void fetchBookings(page + 1)}
+        onEndReachedThreshold={0.4}
         className="flex-1"
       />
     </SafeAreaView>

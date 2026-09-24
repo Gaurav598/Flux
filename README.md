@@ -1,5 +1,7 @@
 # Flux
 
+Engineering references: [architecture](ARCHITECTURE.md), [API and realtime](API_AND_REALTIME_REFERENCE.md), [manual testing](MANUAL_TESTING_GUIDE.md), and [upgrade report](ENGINEERING_UPGRADE_REPORT.md).
+
 | User Side app Home Screen | Drop Location selection screen | Amount Selection screen |
 |---|---|---|
 | <img width="260" alt="User Side app Home Screen" src="https://github.com/user-attachments/assets/85796182-227c-4122-b8db-af6dc6c9260e" /> | <img width="260" alt="Drop Location selection screen" src="https://github.com/user-attachments/assets/fc1491d4-11f6-4bca-95f6-2c8608ac9912" /> | <img width="260" alt="Amount Selection screen" src="https://github.com/user-attachments/assets/52d96f10-0d91-4960-a656-4cc383e2c9c9" /> |

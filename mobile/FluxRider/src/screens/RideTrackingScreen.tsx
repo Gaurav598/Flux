@@ -27,6 +27,7 @@ import {
   requestLocationPermission,
   getCurrentLocation,
 } from '../services/locationService';
+import {subscribeToBookingRealtime} from '../services/realtimeService';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   Navigation,
@@ -79,6 +80,7 @@ const RideTrackingScreen = () => {
     'ACCEPTED' | 'RIDER_EN_ROUTE' | 'RIDER_ARRIVED' | 'IN_PROGRESS' | 'COMPLETED'
   >('ACCEPTED');
   const [loading, setLoading] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
   const terminalHandled = useRef(false);
 
@@ -173,7 +175,7 @@ const RideTrackingScreen = () => {
     }
     fetchBookingDetails();
     startLocationTracking();
-    const interval = setInterval(fetchBookingDetails, 5000);
+    const interval = setInterval(fetchBookingDetails, 30000);
     return () => {
       clearInterval(interval);
       if (watchIdRef.current !== null) {
@@ -188,6 +190,24 @@ const RideTrackingScreen = () => {
     resolvedBookingId,
     startLocationTracking,
   ]);
+
+  useEffect(() => {
+    let unsubscribe: () => void = () => {};
+    let mounted = true;
+    if (!resolvedBookingId) return undefined;
+    void subscribeToBookingRealtime(Number(resolvedBookingId), {
+      onConnected: fetchBookingDetails,
+      onStatus: fetchBookingDetails,
+      onConnectionChange: connected => mounted && setRealtimeConnected(connected),
+    }).then(cleanup => {
+      if (mounted) unsubscribe = cleanup;
+      else cleanup();
+    });
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [fetchBookingDetails, resolvedBookingId]);
 
   useEffect(() => {
     if (booking && mapRef.current) {
@@ -495,6 +515,9 @@ const RideTrackingScreen = () => {
           />
           <Text style={styles.statusText}>{getStatusText()}</Text>
         </View>
+        <Text style={styles.connectionText}>
+          {realtimeConnected ? 'Live updates connected' : 'Reconnecting · periodic sync active'}
+        </Text>
 
         <View style={styles.userCard}>
           <CardGradient radius={20} />
@@ -771,6 +794,14 @@ const styles = StyleSheet.create({
     color: colors.text,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  connectionText: {
+    color: colors.textMute,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: -8,
+    marginBottom: 14,
   },
   userCard: {
     flexDirection: 'row',

@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,6 +19,8 @@ import java.util.Optional;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByUserId(Long userId);
     List<Booking> findByRiderId(Long riderId);
+    Page<Booking> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    Page<Booking> findByRiderIdOrderByCreatedAtDesc(Long riderId, Pageable pageable);
     List<Booking> findByStatus(BookingStatus status);
     List<Booking> findByStatusIn(List<BookingStatus> statuses);
     long countByStatusIn(List<BookingStatus> statuses);

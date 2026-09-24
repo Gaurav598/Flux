@@ -36,7 +36,17 @@ public class PaymentService {
      */
     @Transactional
     public Payment createFreeSubscription(Long riderId) {
-        Rider rider = riderService.getRiderById(riderId);
+        // Serialize activation per rider so concurrent retries cannot create two active rows.
+        Rider rider = riderService.getRiderByIdWithLock(riderId);
+
+        Payment existing = paymentRepository
+                .findFirstByRiderIdAndStatusOrderByCreatedAtDesc(riderId, "ACTIVE")
+                .filter(payment -> payment.getPeriodEnd() != null
+                        && payment.getPeriodEnd().isAfter(LocalDateTime.now()))
+                .orElse(null);
+        if (existing != null) {
+            return existing;
+        }
 
         LocalDateTime now = LocalDateTime.now();
         // Grant subscription for 100 years (effectively permanent for free tier)
@@ -80,12 +90,13 @@ public class PaymentService {
         }
         Rider rider = riderService.getRiderByUserId(riderUserId);
         return paymentRepository.findFirstByRiderIdAndStatusOrderByCreatedAtDesc(rider.getId(), "ACTIVE")
-                .orElseGet(() -> createFreeSubscription(rider.getId()));
+                .filter(payment -> payment.getPeriodEnd() != null
+                        && payment.getPeriodEnd().isAfter(LocalDateTime.now()))
+                .orElseThrow(() -> new IllegalStateException("No server-created subscription activation exists"));
     }
 
     public void handleStripeWebhook(String payload, String signature) {
-        // Stripe is disabled - webhooks are ignored
-        log.info("Stripe webhook received but Stripe is disabled. Ignoring.");
+        throw new IllegalStateException("Stripe webhooks are disabled until provider verification is configured");
     }
 
     public String getSubscriptionStatus(Long userId) {

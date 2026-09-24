@@ -26,6 +26,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 class BookingServiceTest {
@@ -34,12 +35,14 @@ class BookingServiceTest {
     @Mock UserService userService;
     @Mock RiderService riderService;
     @Mock NotificationService notificationService;
+    @Mock RealtimeEventService realtimeEventService;
 
     private BookingService service;
 
     @BeforeEach
     void setUp() {
-        service = new BookingService(bookingRepository, bidRepository, userService, riderService, notificationService);
+        service = new BookingService(bookingRepository, bidRepository, userService, riderService,
+                notificationService, realtimeEventService);
         lenient().when(bookingRepository.save(any(Booking.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -122,6 +125,76 @@ class BookingServiceTest {
         assertEquals(BookingStatus.COMPLETED, completed.getStatus());
         assertEquals(fare, completed.getRiderEarning());
         assertEquals(0.0, completed.getCompanyCommission());
+    }
+
+    @Test
+    void timelineUsesOnlyPersistedLifecycleTimestamps() {
+        Booking booking = booking(100L, user(1L), BookingStatus.COMPLETED, rider(7L, user(2L)), 500.0);
+        LocalDateTime created = LocalDateTime.now().minusHours(1);
+        booking.setCreatedAt(created);
+        booking.setBiddingStartTime(created.plusSeconds(1));
+        booking.setAcceptedAt(created.plusMinutes(2));
+        booking.setRiderEnRouteAt(created.plusMinutes(4));
+        booking.setStartedAt(created.plusMinutes(10));
+        booking.setCompletedAt(created.plusMinutes(30));
+        when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
+
+        List<java.util.Map<String, Object>> timeline = service.getTimeline(100L, 1L, "USER");
+
+        assertEquals(6, timeline.size());
+        assertTrue(timeline.stream().anyMatch(event -> "RIDER_EN_ROUTE".equals(event.get("type"))));
+        assertTrue(timeline.stream().noneMatch(event -> "RIDER_ARRIVED".equals(event.get("type"))));
+    }
+
+    @Test
+    void riderLocationIsParticipantScopedAndReportsFreshness() {
+        Rider rider = rider(7L, user(2L));
+        rider.setCurrentLatitude(28.61);
+        rider.setCurrentLongitude(77.20);
+        rider.setLastLocationUpdate(LocalDateTime.now().minusSeconds(5));
+        Booking booking = booking(100L, user(1L), BookingStatus.ACCEPTED, rider, 500.0);
+        when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
+
+        assertEquals(true, service.getRiderLocationForActor(100L, 1L, "USER").get("fresh"));
+        assertThrows(AccessDeniedException.class,
+                () -> service.getRiderLocationForActor(100L, 99L, "USER"));
+    }
+
+    @Test
+    void expiredBiddingWindowCannotBeAccepted() {
+        Booking booking = booking(100L, user(1L), BookingStatus.BIDDING, null, 500.0);
+        booking.setBiddingEndTime(LocalDateTime.now().minusSeconds(1));
+        when(bookingRepository.findByIdWithLock(100L)).thenReturn(Optional.of(booking));
+
+        assertThrows(IllegalStateException.class, () -> service.acceptUserPrice(100L, 2L));
+        verify(riderService, never()).getRiderByUserId(any());
+    }
+
+    @Test
+    void expiredOtpCannotStartRide() {
+        Booking booking = booking(100L, user(1L), BookingStatus.RIDER_ARRIVED, rider(7L, user(2L)), 500.0);
+        booking.setVerificationOtp("1234");
+        booking.setVerificationOtpExpiresAt(LocalDateTime.now().minusSeconds(1));
+        booking.setVerificationOtpAttempts(0);
+        when(bookingRepository.findByIdWithLock(100L)).thenReturn(Optional.of(booking));
+
+        assertThrows(com.flux.exception.OtpExpiredException.class,
+                () -> service.verifyOtpAndStartRide(100L, 2L, "1234"));
+        assertEquals(BookingStatus.RIDER_ARRIVED, booking.getStatus());
+    }
+
+    @Test
+    void cancellationRulesDifferBeforeAndDuringTrip() {
+        Booking bidding = booking(100L, user(1L), BookingStatus.BIDDING, null, 500.0);
+        when(bookingRepository.findByIdWithLock(100L)).thenReturn(Optional.of(bidding));
+        when(bidRepository.findByBookingIdAndStatus(any(), any())).thenReturn(List.of());
+        assertEquals(BookingStatus.CANCELLED_BY_USER,
+                service.cancelBookingAsActor(100L, "Plans changed", 1L, "USER").getStatus());
+
+        Booking inProgress = booking(101L, user(1L), BookingStatus.IN_PROGRESS, rider(7L, user(2L)), 500.0);
+        when(bookingRepository.findByIdWithLock(101L)).thenReturn(Optional.of(inProgress));
+        assertThrows(IllegalStateException.class,
+                () -> service.cancelBookingAsActor(101L, "Too late", 1L, "USER"));
     }
 
     private static User user(Long id) {

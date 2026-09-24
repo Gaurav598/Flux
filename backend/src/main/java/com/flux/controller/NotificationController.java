@@ -1,7 +1,6 @@
 package com.flux.controller;
 
 import com.flux.model.entity.Notification;
-import com.flux.security.JwtUtil;
 import com.flux.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -20,13 +20,11 @@ import java.util.stream.Collectors;
 public class NotificationController {
 
     private final NotificationService notificationService;
-    private final JwtUtil jwtUtil;
 
     @GetMapping
-    public ResponseEntity<?> getNotifications(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> getNotifications(HttpServletRequest request) {
         try {
-            String token = authHeader.replace("Bearer ", "").trim();
-            Long userId = jwtUtil.extractUserId(token);
+            Long userId = (Long) request.getAttribute("userId");
             List<Notification> notifications = notificationService.getUserNotifications(userId);
             return ResponseEntity.ok(notifications.stream().map(this::toMap).collect(Collectors.toList()));
         } catch (Exception e) {
@@ -36,10 +34,9 @@ public class NotificationController {
     }
 
     @GetMapping("/unread")
-    public ResponseEntity<?> getUnreadNotifications(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> getUnreadNotifications(HttpServletRequest request) {
         try {
-            String token = authHeader.replace("Bearer ", "").trim();
-            Long userId = jwtUtil.extractUserId(token);
+            Long userId = (Long) request.getAttribute("userId");
             List<Notification> notifications = notificationService.getUnreadNotifications(userId);
             return ResponseEntity.ok(notifications.stream().map(this::toMap).collect(Collectors.toList()));
         } catch (Exception e) {
@@ -49,10 +46,9 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
-    public ResponseEntity<?> getUnreadCount(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> getUnreadCount(HttpServletRequest request) {
         try {
-            String token = authHeader.replace("Bearer ", "").trim();
-            Long userId = jwtUtil.extractUserId(token);
+            Long userId = (Long) request.getAttribute("userId");
             long count = notificationService.getUnreadCount(userId);
             return ResponseEntity.ok(Map.of("count", count));
         } catch (Exception e) {
@@ -63,22 +59,15 @@ public class NotificationController {
 
     @PutMapping("/{id}/read")
     public ResponseEntity<?> markAsRead(
-            @RequestHeader("Authorization") String authHeader,
-            @PathVariable Long id) {
-        try {
-            notificationService.markAsRead(id);
-            return ResponseEntity.ok(Map.of("message", "Notification marked as read"));
-        } catch (Exception e) {
-            log.error("Error marking notification as read: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+            @PathVariable Long id, HttpServletRequest request) {
+        notificationService.markAsRead(id, (Long) request.getAttribute("userId"));
+        return ResponseEntity.ok(Map.of("message", "Notification marked as read"));
     }
 
     @PutMapping("/read-all")
-    public ResponseEntity<?> markAllAsRead(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> markAllAsRead(HttpServletRequest request) {
         try {
-            String token = authHeader.replace("Bearer ", "").trim();
-            Long userId = jwtUtil.extractUserId(token);
+            Long userId = (Long) request.getAttribute("userId");
             notificationService.markAllAsRead(userId);
             return ResponseEntity.ok(Map.of("message", "All notifications marked as read"));
         } catch (Exception e) {

@@ -27,6 +27,7 @@ import {
 import {colors, normalizeVehicleId} from '../theme';
 import {ApproachingVehicleMarker, UserLocationMarker} from '../components/MapMarkers';
 import CardGradient from '../components/CardGradient';
+import {subscribeToBookingRealtime} from '../services/realtimeService';
 
 interface Booking {
   id: number;
@@ -62,8 +63,11 @@ const ActiveBookingScreen = () => {
 
   const mapRef = useRef<MapView>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const bookingRef = useRef<Booking | null>(null);
   const [userOtp, setUserOtp] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [locationRecordedAt, setLocationRecordedAt] = useState<string | null>(null);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
   const animatedLatitude = useRef(new Animated.Value(0)).current;
   const animatedLongitude = useRef(new Animated.Value(0)).current;
@@ -85,10 +89,11 @@ const ActiveBookingScreen = () => {
     try {
       const response = await api.get(`/bookings/${bookingId}`);
       const payload = response.data || {};
-      const fallbackPickupLat = booking?.pickupLatitude || 28.6139;
-      const fallbackPickupLng = booking?.pickupLongitude || 77.209;
-      const fallbackDropLat = booking?.dropLatitude || fallbackPickupLat;
-      const fallbackDropLng = booking?.dropLongitude || fallbackPickupLng;
+      const currentBooking = bookingRef.current;
+      const fallbackPickupLat = currentBooking?.pickupLatitude || 28.6139;
+      const fallbackPickupLng = currentBooking?.pickupLongitude || 77.209;
+      const fallbackDropLat = currentBooking?.dropLatitude || fallbackPickupLat;
+      const fallbackDropLng = currentBooking?.dropLongitude || fallbackPickupLng;
 
       const newBooking = {
         ...payload,
@@ -111,14 +116,15 @@ const ActiveBookingScreen = () => {
           : null,
       };
 
-      if (booking && newBooking.rider) {
+      if (currentBooking && newBooking.rider) {
         const newLat =
           newBooking.rider.currentLatitude || newBooking.pickupLatitude;
         const newLng =
           newBooking.rider.currentLongitude || newBooking.pickupLongitude;
-        const oldLat = booking.rider?.currentLatitude || booking.pickupLatitude;
+        const oldLat =
+          currentBooking.rider?.currentLatitude || currentBooking.pickupLatitude;
         const oldLng =
-          booking.rider?.currentLongitude || booking.pickupLongitude;
+          currentBooking.rider?.currentLongitude || currentBooking.pickupLongitude;
 
         if (
           Math.abs(newLat - oldLat) > 0.0001 ||
@@ -146,7 +152,11 @@ const ActiveBookingScreen = () => {
         );
       }
 
+      bookingRef.current = newBooking;
       setBooking(newBooking);
+      if (payload.rider?.lastLocationUpdate) {
+        setLocationRecordedAt(payload.rider.lastLocationUpdate);
+      }
 
       if (newBooking.status === 'COMPLETED' && !completedHandled.current) {
         completedHandled.current = true;
@@ -189,7 +199,7 @@ const ActiveBookingScreen = () => {
     } finally {
       setLoading(false);
     }
-  }, [animatedLatitude, animatedLongitude, booking, bookingId, navigation]);
+  }, [animatedLatitude, animatedLongitude, bookingId, navigation]);
 
   const fetchUserOtp = useCallback(async () => {
     try {
@@ -208,13 +218,51 @@ const ActiveBookingScreen = () => {
     }
 
     fetchBookingDetails();
-    intervalRef.current = setInterval(fetchBookingDetails, 7000);
+    intervalRef.current = setInterval(fetchBookingDetails, 30000);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
   }, [bookingId, fetchBookingDetails, fetchUserOtp]);
+
+  useEffect(() => {
+    let unsubscribe: () => void = () => {};
+    let mounted = true;
+    if (!Number.isFinite(bookingId) || bookingId <= 0) return undefined;
+
+    void subscribeToBookingRealtime(bookingId, {
+      onConnected: fetchBookingDetails,
+      onStatus: fetchBookingDetails,
+      onConnectionChange: connected => mounted && setRealtimeConnected(connected),
+      onLocation: event => {
+        if (!mounted) return;
+        setLocationRecordedAt(event.recordedAt || null);
+        setBooking(current => {
+          const updated = current?.rider
+            ? {
+                ...current,
+                rider: {
+                  ...current.rider,
+                  currentLatitude: Number(event.latitude),
+                  currentLongitude: Number(event.longitude),
+                },
+              }
+            : current;
+          bookingRef.current = updated;
+          return updated;
+        });
+      },
+    }).then(cleanup => {
+      if (mounted) unsubscribe = cleanup;
+      else cleanup();
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [bookingId, fetchBookingDetails]);
 
   useEffect(() => {
     if (booking?.status === 'RIDER_ARRIVED') {
@@ -448,6 +496,12 @@ const ActiveBookingScreen = () => {
             {statusInfo.text}
           </Text>
         </View>
+        <Text style={styles.connectionText}>
+          {realtimeConnected ? 'Live updates connected' : 'Reconnecting · periodic sync active'}
+          {locationRecordedAt
+            ? ` · location ${Math.max(0, Math.floor((Date.now() - new Date(locationRecordedAt).getTime()) / 1000))}s ago`
+            : ''}
+        </Text>
 
         {booking.status === 'RIDER_ARRIVED' && userOtp !== '' && (
           <View style={styles.otpCard}>
@@ -652,6 +706,14 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  connectionText: {
+    color: colors.textMute,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: -8,
+    marginBottom: 14,
   },
   otpCard: {
     backgroundColor: colors.accentSoft,

@@ -27,6 +27,10 @@ import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.security.SecureRandom;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import java.time.Duration;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +48,7 @@ public class BookingService {
     private final UserService userService;
     private final RiderService riderService;
     private final NotificationService notificationService;
+    private final RealtimeEventService realtimeEventService;
 
     @Value("${app.bidding.window-seconds}")
     private Integer biddingWindowSeconds;
@@ -83,6 +88,7 @@ public class BookingService {
                 .build();
 
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Booking created: {} for user: {}", savedBooking.getId(), userId);
 
         notificationService.notifyUser(userId, "Booking Confirmed", 
@@ -134,6 +140,7 @@ public class BookingService {
                 .build();
 
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Booking created: {} for user: {} vehicleType: {}", savedBooking.getId(), userId, req.getVehicleType());
 
         notificationService.notifyUser(userId, "Booking Confirmed",
@@ -187,6 +194,15 @@ public class BookingService {
         return bookingRepository.findByRiderId(rider.getId());
     }
 
+    public Page<Booking> getUserBookingHistory(Long userId, int page, int size) {
+        return bookingRepository.findByUserIdOrderByCreatedAtDesc(userId, historyPage(page, size));
+    }
+
+    public Page<Booking> getRiderBookingHistory(Long riderUserId, int page, int size) {
+        Rider rider = riderService.getRiderByUserId(riderUserId);
+        return bookingRepository.findByRiderIdOrderByCreatedAtDesc(rider.getId(), historyPage(page, size));
+    }
+
     public List<Booking> getActiveBookings() {
         return bookingRepository.findByStatusIn(List.of(
                 BookingStatus.ACCEPTED,
@@ -224,6 +240,7 @@ public class BookingService {
         booking.setAcceptedAt(LocalDateTime.now());
 
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Booking {} accepted by rider {}", bookingId, riderId);
 
         notificationService.notifyUserWithType(
@@ -274,6 +291,7 @@ public class BookingService {
         freshBooking.setFinalFare(agreedFare);
 
         Booking savedBooking = bookingRepository.save(freshBooking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         riderService.updateRiderStatus(rider.getId(), RiderStatus.ON_RIDE);
         rejectPendingBids(bookingId, null, "This booking was accepted directly by another rider");
 
@@ -308,7 +326,9 @@ public class BookingService {
         BookingStateMachine.requireTransition(booking.getStatus(), status);
         booking.setStatus(status);
 
-        if (status == BookingStatus.RIDER_ARRIVED) {
+        if (status == BookingStatus.RIDER_EN_ROUTE) {
+            booking.setRiderEnRouteAt(LocalDateTime.now());
+        } else if (status == BookingStatus.RIDER_ARRIVED) {
             booking.setRiderArrivedAt(LocalDateTime.now());
             notificationService.notifyUserWithType(
                     booking.getUser().getId(),
@@ -341,6 +361,7 @@ public class BookingService {
         }
 
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Booking {} status updated to {}", bookingId, status);
         return savedBooking;
     }
@@ -372,6 +393,7 @@ public class BookingService {
         }
 
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Booking {} cancelled by {}", bookingId, byUser ? "user" : "rider");
 
         if (byUser && booking.getRider() != null) {
@@ -625,6 +647,7 @@ public class BookingService {
         booking.setRiderArrivedAt(LocalDateTime.now());
         
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Rider {} marked reached for booking {}", riderId, bookingId);
         
         notificationService.notifyUserWithType(
@@ -677,6 +700,7 @@ public class BookingService {
         clearVerificationOtp(booking);
         
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Ride started for booking {} after OTP verification", bookingId);
         
         notificationService.notifyUserWithType(
@@ -721,6 +745,7 @@ public class BookingService {
         riderService.incrementRideCount(booking.getRider().getId());
         
         Booking savedBooking = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(savedBooking);
         log.info("Ride completed for booking {}", bookingId);
         
         notificationService.notifyUserWithType(
@@ -733,6 +758,66 @@ public class BookingService {
         riderService.updateRiderStatus(booking.getRider().getId(), com.flux.model.enums.RiderStatus.AVAILABLE);
         
         return savedBooking;
+    }
+
+    public List<Map<String, Object>> getTimeline(Long bookingId, Long actorUserId, String actorRole) {
+        Booking booking = getBookingForActor(bookingId, actorUserId, actorRole);
+        List<Map<String, Object>> timeline = new ArrayList<>();
+        addTimelineEvent(timeline, "BOOKING_CREATED", "Booking created", booking.getCreatedAt());
+        addTimelineEvent(timeline, "BIDDING_STARTED", "Bidding started", booking.getBiddingStartTime());
+        addTimelineEvent(timeline, "RIDER_ASSIGNED", "Rider assigned", booking.getAcceptedAt());
+        addTimelineEvent(timeline, "RIDER_EN_ROUTE", "Rider en route", booking.getRiderEnRouteAt());
+        addTimelineEvent(timeline, "RIDER_ARRIVED", "Rider arrived", booking.getRiderArrivedAt());
+        addTimelineEvent(timeline, "TRIP_STARTED", "Trip started", booking.getStartedAt());
+        addTimelineEvent(timeline, "TRIP_COMPLETED", "Trip completed", booking.getCompletedAt());
+        if (booking.getCancelledAt() != null) {
+            Map<String, Object> event = timelineEvent("BOOKING_CANCELLED", "Booking cancelled", booking.getCancelledAt());
+            event.put("reason", booking.getCancellationReason());
+            event.put("status", booking.getStatus().name());
+            timeline.add(event);
+        }
+        timeline.sort((left, right) -> ((LocalDateTime) left.get("occurredAt"))
+                .compareTo((LocalDateTime) right.get("occurredAt")));
+        return timeline;
+    }
+
+    public Map<String, Object> getRiderLocationForActor(Long bookingId, Long actorUserId, String actorRole) {
+        Booking booking = getBookingForActor(bookingId, actorUserId, actorRole);
+        if (booking.getRider() == null) {
+            throw new IllegalStateException("No rider is assigned to this booking");
+        }
+        Rider rider = booking.getRider();
+        LocalDateTime recordedAt = rider.getLastLocationUpdate();
+        long ageSeconds = recordedAt == null ? Long.MAX_VALUE
+                : Math.max(0, Duration.between(recordedAt, LocalDateTime.now()).getSeconds());
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("bookingId", bookingId);
+        response.put("riderId", rider.getId());
+        response.put("latitude", rider.getCurrentLatitude());
+        response.put("longitude", rider.getCurrentLongitude());
+        response.put("recordedAt", recordedAt);
+        response.put("ageSeconds", ageSeconds == Long.MAX_VALUE ? null : ageSeconds);
+        response.put("fresh", ageSeconds <= 30);
+        return response;
+    }
+
+    private PageRequest historyPage(int page, int size) {
+        if (page < 0) throw new IllegalArgumentException("page must be zero or greater");
+        int boundedSize = Math.max(1, Math.min(size, 50));
+        return PageRequest.of(page, boundedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private void addTimelineEvent(List<Map<String, Object>> timeline, String type,
+                                  String label, LocalDateTime occurredAt) {
+        if (occurredAt != null) timeline.add(timelineEvent(type, label, occurredAt));
+    }
+
+    private Map<String, Object> timelineEvent(String type, String label, LocalDateTime occurredAt) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("type", type);
+        event.put("label", label);
+        event.put("occurredAt", occurredAt);
+        return event;
     }
 
     public String getVerificationOtpForOwner(Long bookingId, Long actorUserId) {

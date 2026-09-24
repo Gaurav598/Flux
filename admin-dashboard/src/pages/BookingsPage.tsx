@@ -118,13 +118,14 @@ export default function BookingsPage() {
                 <th className={th}>Route</th>
                 <th className={th}>Fare</th>
                 <th className={th}>Status</th>
+                <th className={th}>Operational note</th>
                 <th className={th}>Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {bookings?.data?.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-zinc-500 text-sm">
+                  <td colSpan={8} className="px-6 py-12 text-center text-zinc-500 text-sm">
                     No bookings found.
                   </td>
                 </tr>
@@ -137,6 +138,10 @@ export default function BookingsPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-zinc-100">{booking.user?.fullName}</div>
                     <div className="text-sm text-zinc-500">{booking.user?.mobileNumber}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-zinc-400 max-w-xs">
+                    {booking.cancellationReason ||
+                      (booking.status === 'NO_RIDERS_AVAILABLE' ? 'Bidding window ended without assignment' : '—')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {booking.rider ? (

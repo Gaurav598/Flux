@@ -7,6 +7,7 @@ import com.flux.model.entity.Rider;
 import com.flux.model.entity.User;
 import com.flux.model.enums.UserRole;
 import com.flux.model.enums.RiderStatus;
+import com.flux.model.enums.AccountStatus;
 import com.flux.security.JwtUtil;
 import com.flux.service.FirebaseOtpService;
 import com.flux.service.UserService;
@@ -77,15 +78,15 @@ public class AuthController {
         String phoneNumber = null;
         try {
             phoneNumber = normalizePhone(request.getMobileNumber());
-            log.info("sendOtp requested for mobile={}", phoneNumber);
+            log.info("sendOtp requested for mobile={}", maskPhone(phoneNumber));
             String sessionInfoId = firebaseOtpService.initiatePhoneSignIn(phoneNumber, request.getRecaptchaToken());
-            log.info("sendOtp succeeded for mobile={}", phoneNumber);
+            log.info("sendOtp succeeded for mobile={}", maskPhone(phoneNumber));
             return ResponseEntity.ok().body(Map.of(
                     "sessionInfoId", sessionInfoId,
                     "message", "OTP sent successfully"
             ));
         } catch (Exception e) {
-            log.error("sendOtp failed for mobile={}: {}", phoneNumber, e.getMessage());
+            log.error("sendOtp failed for mobile={}: {}", maskPhone(phoneNumber), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -102,13 +103,13 @@ public class AuthController {
 
     @PostMapping("/verify-firebase-token")
     public ResponseEntity<?> verifyFirebaseToken(@RequestBody AuthRequest request) {
-    log.info("verifyFirebaseToken requested for mobile={}", request.getMobileNumber());
+    log.info("verifyFirebaseToken requested for mobile={}", maskPhone(request.getMobileNumber()));
     return handleIdTokenVerification(request, UserRole.USER, request.getFullName() != null ? request.getFullName() : "User");
     }
 
     @PostMapping("/rider/verify-firebase-token")
     public ResponseEntity<?> verifyRiderFirebaseToken(@RequestBody AuthRequest request) {
-    log.info("verifyRiderFirebaseToken requested for mobile={}", request.getMobileNumber());
+    log.info("verifyRiderFirebaseToken requested for mobile={}", maskPhone(request.getMobileNumber()));
     return handleIdTokenVerification(request, UserRole.RIDER, request.getFullName() != null ? request.getFullName() : "Rider");
     }
 
@@ -117,15 +118,20 @@ public class AuthController {
         try {
             String refreshToken = request.getRefreshToken();
             String mobileNumber = jwtUtil.extractMobileNumber(refreshToken);
-            log.info("refreshToken requested for mobile={}", mobileNumber);
-            if (!jwtUtil.validateToken(refreshToken, mobileNumber)) {
-                log.warn("Invalid refresh token for mobile={}", mobileNumber);
+            log.info("refreshToken requested for mobile={}", maskPhone(mobileNumber));
+            if (!jwtUtil.validateToken(refreshToken, mobileNumber) || !jwtUtil.isRefreshToken(refreshToken)) {
+                log.warn("Invalid refresh token for mobile={}", maskPhone(mobileNumber));
                 return ResponseEntity.badRequest().body(Map.of("message", "Invalid refresh token"));
             }
 
             Long userId = jwtUtil.extractUserId(refreshToken);
-            String role = jwtUtil.extractRole(refreshToken);
             User user = userService.getUserById(userId);
+            if (user.getStatus() != AccountStatus.ACTIVE
+                    || !user.getMobileNumber().equals(mobileNumber)
+                    || !user.getRole().name().equals(jwtUtil.extractRole(refreshToken))) {
+                return ResponseEntity.status(401).body(Map.of("message", "Refresh token is no longer valid"));
+            }
+            String role = user.getRole().name();
 
             String accessToken = jwtUtil.generateToken(
                     user.getMobileNumber(),
@@ -141,7 +147,7 @@ public class AuthController {
                     .message("Token refreshed")
                     .build();
 
-            log.info("refreshToken succeeded for userId={}, mobile={}", userId, mobileNumber);
+            log.info("refreshToken succeeded for userId={}, mobile={}", userId, maskPhone(mobileNumber));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("refreshToken failed: {}", e.getMessage());
@@ -153,7 +159,7 @@ public class AuthController {
         String phoneNumber = null;
         try {
             phoneNumber = firebaseOtpService.verifyOtpSession(request.getSessionInfoId(), request.getOtpCode());
-            log.info("verifyOtp succeeded for mobile={}", phoneNumber);
+            log.info("verifyOtp succeeded for mobile={}", maskPhone(phoneNumber));
             User user = userService.createOrGetUser(
                     phoneNumber,
                     defaultName,
@@ -161,7 +167,7 @@ public class AuthController {
             );
             return ResponseEntity.ok(buildAuthResponse(user, "Login successful"));
         } catch (Exception e) {
-            log.error("verifyOtp failed for mobile={}: {}", phoneNumber, e.getMessage());
+            log.error("verifyOtp failed for mobile={}: {}", maskPhone(phoneNumber), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -170,7 +176,7 @@ public class AuthController {
         String phoneNumber = null;
         try {
             phoneNumber = firebaseOtpService.verifyIdToken(request.getIdToken(), request.getMobileNumber());
-            log.info("verifyIdToken succeeded for mobile={}", phoneNumber);
+            log.info("verifyIdToken succeeded for mobile={}", maskPhone(phoneNumber));
             UserService.UserResult result = userService.createOrGetUserWithStatus(
                     phoneNumber,
                     defaultName,
@@ -178,7 +184,7 @@ public class AuthController {
             );
             return ResponseEntity.ok(buildAuthResponse(result.getUser(), "Login successful", result.isNewlyCreated()));
         } catch (Exception e) {
-            log.error("verifyIdToken failed for mobile={}: {}", phoneNumber, e.getMessage());
+            log.error("verifyIdToken failed for mobile={}: {}", maskPhone(phoneNumber), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -217,5 +223,12 @@ public class AuthController {
             throw new IllegalArgumentException("Mobile number is required");
         }
         return mobileNumber.startsWith("+91") ? mobileNumber : "+91" + mobileNumber;
+    }
+
+    private String maskPhone(String mobileNumber) {
+        if (mobileNumber == null || mobileNumber.length() < 4) {
+            return "***";
+        }
+        return "***" + mobileNumber.substring(mobileNumber.length() - 4);
     }
 }

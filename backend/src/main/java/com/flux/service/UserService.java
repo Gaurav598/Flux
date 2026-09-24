@@ -42,38 +42,23 @@ public class UserService {
         Optional<User> existingUser = userRepository.findByMobileNumber(mobileNumber);
 
         if (existingUser.isPresent()) {
-            log.info("Existing user found for mobile={}", mobileNumber);
-            return new UserResult(existingUser.get(), false);
+            User user = existingUser.get();
+            log.info("Existing user found for userId={}", user.getId());
+            return new UserResult(user, false);
         }
 
-        String fixedOtp = generateFixedOtp(mobileNumber);
-        
         User newUser = User.builder()
                 .mobileNumber(mobileNumber)
                 .fullName(fullName)
                 .role(role)
                 .status(AccountStatus.ACTIVE)
-                .fixedOtp(fixedOtp)
                 .build();
 
         User saved = userRepository.save(newUser);
-        log.info("New user created: mobile={}, role={}, fixedOtp={}", mobileNumber, role, fixedOtp);
+        log.info("New user created: role={}", role);
         return new UserResult(saved, true);
     }
     
-    private String generateFixedOtp(String mobileNumber) {
-        try {
-            String lastFour = mobileNumber.substring(Math.max(0, mobileNumber.length() - 4));
-            int lastFourDigits = Integer.parseInt(lastFour);
-            int otp = (lastFourDigits * 7 + 1234) % 10000;
-            return String.format("%04d", otp);
-        } catch (NumberFormatException e) {
-            // Fallback for non-numeric identifiers (e.g. admin accounts)
-            int otp = Math.abs(mobileNumber.hashCode()) % 10000;
-            return String.format("%04d", otp);
-        }
-    }
-
     /** Legacy convenience wrapper used by remaining callers. */
     @Transactional
     public User createOrGetUser(String mobileNumber, String fullName, UserRole role) {
@@ -187,4 +172,3 @@ public class UserService {
         log.info("FCM token updated for userId={}", userId);
     }
 }
-

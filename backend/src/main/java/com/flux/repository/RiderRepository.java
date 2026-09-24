@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
 
 @Repository
 public interface RiderRepository extends JpaRepository<Rider, Long> {
@@ -22,6 +23,11 @@ public interface RiderRepository extends JpaRepository<Rider, Long> {
     List<Rider> findByStatus(RiderStatus status);
     long countByStatus(RiderStatus status);
     long countByStatusIn(List<RiderStatus> statuses);
+
+    @Query("SELECT COUNT(r) FROM Rider r WHERE r.status = :status AND " +
+            "(r.lastLocationUpdate IS NULL OR r.lastLocationUpdate < :cutoff)")
+    long countStaleByStatus(@Param("status") RiderStatus status,
+                            @Param("cutoff") LocalDateTime cutoff);
     
     @Query("SELECT r FROM Rider r WHERE r.status = :status AND " +
            "r.currentLatitude IS NOT NULL AND r.currentLongitude IS NOT NULL AND " +

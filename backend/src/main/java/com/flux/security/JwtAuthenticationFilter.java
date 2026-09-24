@@ -15,6 +15,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import com.flux.model.entity.User;
+import com.flux.model.enums.AccountStatus;
 
 @Component
 @RequiredArgsConstructor
@@ -42,18 +44,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (mobileNumber != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            if (jwtUtil.validateToken(jwt, mobileNumber)) {
-                String role = jwtUtil.extractRole(jwt);
-                Long userId = jwtUtil.extractUserId(jwt);
-                
-                UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                        mobileNumber, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
-                authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
-                request.setAttribute("userId", userId);
-                request.setAttribute("userRole", role);
-                
-                SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+            try {
+                if (jwtUtil.validateToken(jwt, mobileNumber) && jwtUtil.isAccessToken(jwt)) {
+                    String role = jwtUtil.extractRole(jwt);
+                    Long userId = jwtUtil.extractUserId(jwt);
+                    User user = userService.getUserById(userId);
+                    if (user.getStatus() == AccountStatus.ACTIVE
+                            && user.getMobileNumber().equals(mobileNumber)
+                            && user.getRole().name().equals(role)) {
+                        UsernamePasswordAuthenticationToken authenticationToken =
+                                new UsernamePasswordAuthenticationToken(
+                                        mobileNumber,
+                                        null,
+                                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
+                        authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                        request.setAttribute("userId", userId);
+                        request.setAttribute("userRole", role);
+                        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+                    }
+                }
+            } catch (RuntimeException exception) {
+                logger.debug("JWT rejected because the account is unavailable or changed", exception);
             }
         }
         

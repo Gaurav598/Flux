@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.Page;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -48,6 +49,14 @@ public class BookingController {
         return bookingService.getUserBookings(actorId(request));
     }
 
+    @GetMapping("/user/history")
+    @PreAuthorize("hasRole('USER')")
+    public Page<Booking> getUserHistory(@RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "20") int size,
+                                        HttpServletRequest request) {
+        return bookingService.getUserBookingHistory(actorId(request), page, size);
+    }
+
     @GetMapping("/user/active")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Booking> getUserActiveBooking(HttpServletRequest request) {
@@ -59,6 +68,14 @@ public class BookingController {
     @PreAuthorize("hasRole('RIDER')")
     public List<Booking> getRiderBookings(HttpServletRequest request) {
         return bookingService.getRiderBookings(actorId(request));
+    }
+
+    @GetMapping("/rider/history")
+    @PreAuthorize("hasRole('RIDER')")
+    public Page<Booking> getRiderHistory(@RequestParam(defaultValue = "0") int page,
+                                         @RequestParam(defaultValue = "20") int size,
+                                         HttpServletRequest request) {
+        return bookingService.getRiderBookingHistory(actorId(request), page, size);
     }
 
     @GetMapping("/rider/active")
@@ -125,6 +142,16 @@ public class BookingController {
     @PreAuthorize("hasRole('USER')")
     public Map<String, String> getVerificationOtp(@PathVariable Long id, HttpServletRequest request) {
         return Map.of("otp", bookingService.getVerificationOtpForOwner(id, actorId(request)));
+    }
+
+    @GetMapping("/{id}/timeline")
+    public List<Map<String, Object>> getTimeline(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.getTimeline(id, actorId(request), actorRole(request));
+    }
+
+    @GetMapping("/{id}/rider-location")
+    public Map<String, Object> getRiderLocation(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.getRiderLocationForActor(id, actorId(request), actorRole(request));
     }
 
     @PostMapping("/{id}/complete")

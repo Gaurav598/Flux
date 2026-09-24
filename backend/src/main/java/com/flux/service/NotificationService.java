@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import org.springframework.security.access.AccessDeniedException;
 
 @Service
 @RequiredArgsConstructor
@@ -145,9 +146,12 @@ public class NotificationService {
     }
 
     @Transactional
-    public void markAsRead(Long notificationId) {
+    public void markAsRead(Long notificationId, Long actorUserId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
+        if (!notification.getUser().getId().equals(actorUserId)) {
+            throw new AccessDeniedException("You cannot modify another user's notification");
+        }
         
         notification.setIsRead(true);
         notificationRepository.save(notification);
