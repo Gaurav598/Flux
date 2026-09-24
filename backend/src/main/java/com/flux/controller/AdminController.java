@@ -34,11 +34,11 @@ public class AdminController {
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalUsers", userService.getTotalUserCount());
             stats.put("totalRiders", userService.getUserCountByRole(UserRole.RIDER));
-            stats.put("activeRiders", riderService.getRiderCountByStatus(RiderStatus.ACTIVE));
+            stats.put("activeRiders", riderService.getOnlineRiderCount());
             stats.put("pendingRiders", riderService.getRiderCountByStatus(RiderStatus.PENDING));
             stats.put("todayBookings", bookingService.getTotalBookingsToday());
-            stats.put("activeBookings", bookingService.getBookingCountByStatus(BookingStatus.IN_PROGRESS));
-            stats.put("todayRevenue", bookingService.getTotalRevenueToday());
+            stats.put("activeBookings", bookingService.getActiveBookingCount());
+            stats.put("todayRevenue", paymentService.getTotalRevenueToday());
             
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
@@ -185,13 +185,15 @@ public class AdminController {
             Map<String, Object> analytics = new HashMap<>();
             // All-time counts
             analytics.put("totalBookings", bookingService.getTotalBookingCount());
-            analytics.put("todayRevenue", bookingService.getTotalRevenueToday());
-            analytics.put("totalRevenue", bookingService.getTotalRevenue());
-            analytics.put("activeRiders", riderService.getRiderCountByStatus(RiderStatus.ACTIVE));
+            analytics.put("todayRevenue", paymentService.getTotalRevenueToday());
+            analytics.put("totalRevenue", paymentService.getTotalRevenue());
+            analytics.put("activeRiders", riderService.getOnlineRiderCount());
+            analytics.put("activeBookings", bookingService.getActiveBookingCount());
             analytics.put("totalUsers", userService.getTotalUserCount());
             analytics.put("totalRiders", userService.getUserCountByRole(com.flux.model.enums.UserRole.RIDER));
             analytics.put("todayBookings", bookingService.getTotalBookingsToday());
             analytics.put("pendingRiders", riderService.getRiderCountByStatus(RiderStatus.PENDING));
+            analytics.put("dailyBookings", bookingService.getDailyBookingCounts(days));
             return ResponseEntity.ok(analytics);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

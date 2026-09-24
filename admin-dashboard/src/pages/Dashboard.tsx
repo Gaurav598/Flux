@@ -57,16 +57,14 @@ export default function Dashboard() {
     },
   ];
 
-  // NOTE: Weekly chart uses sample data — real per-day query endpoint not yet implemented.
-  const chartData = [
-    { name: 'Mon', bookings: 0 },
-    { name: 'Tue', bookings: 0 },
-    { name: 'Wed', bookings: 0 },
-    { name: 'Thu', bookings: 0 },
-    { name: 'Fri', bookings: 0 },
-    { name: 'Sat', bookings: 0 },
-    { name: 'Sun', bookings: stats.todayBookings ?? 0 },
-  ];
+  const chartData = Array.isArray(stats.dailyBookings)
+    ? stats.dailyBookings.map((item: {date: string; bookings: number}) => ({
+        name: new Date(`${item.date}T00:00:00`).toLocaleDateString(undefined, {
+          weekday: 'short',
+        }),
+        bookings: item.bookings,
+      }))
+    : [];
 
   return (
     <div className="p-8">
@@ -110,7 +108,7 @@ export default function Dashboard() {
           <p className="text-[10px] text-zinc-600 mt-1">Payments disabled (Stripe)</p>
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">In Progress</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Active Bookings</p>
           <p className="text-xl font-bold text-indigo-400">{stats.activeBookings ?? 0}</p>
         </div>
       </div>
@@ -119,7 +117,7 @@ export default function Dashboard() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-semibold text-zinc-300">Weekly Bookings</h2>
-            <span className="text-[10px] text-zinc-600 uppercase tracking-wider">Sample layout — real per-day data coming soon</span>
+            <span className="text-[10px] text-zinc-600 uppercase tracking-wider">Backend booking records · last 7 days</span>
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData}>

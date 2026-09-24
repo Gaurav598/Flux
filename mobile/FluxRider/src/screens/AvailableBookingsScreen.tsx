@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
 import {
@@ -18,7 +19,12 @@ import {
 } from '../theme';
 import {useSelector, useDispatch} from 'react-redux';
 import {RootState, AppDispatch} from '../store';
-import {setAvailableBookings, addBid} from '../store/slices/riderSlice';
+import {
+  setAvailableBookings,
+  addBid,
+  removeAvailableBooking,
+  setActiveBooking,
+} from '../store/slices/riderSlice';
 import api from '../config/api';
 import {
   getCurrentLocation as fetchCurrentLocation,
@@ -27,7 +33,6 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   MapPin,
-  ChevronRight,
   ArrowLeft,
   X,
   User,
@@ -39,6 +44,7 @@ import CardGradient from '../components/CardGradient';
 const AvailableBookingsScreen = ({navigation}: any) => {
   const dispatch = useDispatch<AppDispatch>();
   const insets = useSafeAreaInsets();
+  const {height: windowHeight} = useWindowDimensions();
   const [loading, setLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bidAmount, setBidAmount] = useState('');
@@ -46,10 +52,18 @@ const AvailableBookingsScreen = ({navigation}: any) => {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const {availableBookings} = useSelector(
+  const {availableBookings, myBids} = useSelector(
     (state: RootState) => state.rider,
   ) as any;
   const mapRef = useRef<MapView>(null);
+  const requestSequence = useRef(0);
+  const actionInFlight = useRef(false);
+  const currentLocationRef = useRef(currentLocation);
+  const myBidsRef = useRef(myBids);
+
+  useEffect(() => {
+    myBidsRef.current = myBids;
+  }, [myBids]);
 
   const currentBooking = availableBookings[currentIndex] ?? null;
 
@@ -60,8 +74,9 @@ const AvailableBookingsScreen = ({navigation}: any) => {
 
   const fetchAvailableBookings = useCallback(
     async (lat?: number, lng?: number) => {
-      const latitude = lat || currentLocation?.latitude || 28.6139;
-      const longitude = lng || currentLocation?.longitude || 77.209;
+      const requestId = ++requestSequence.current;
+      const latitude = lat || currentLocationRef.current?.latitude || 28.6139;
+      const longitude = lng || currentLocationRef.current?.longitude || 77.209;
 
       setLoading(true);
       try {
@@ -124,7 +139,21 @@ const AvailableBookingsScreen = ({navigation}: any) => {
           })
           .filter(Boolean);
 
-        dispatch(setAvailableBookings(bookings));
+        if (requestId !== requestSequence.current) {
+          return;
+        }
+        const submittedBookingIds = new Set(
+          (myBidsRef.current || []).map((bid: any) =>
+            String(bid.bookingId || bid.booking?.id || ''),
+          ),
+        );
+        dispatch(
+          setAvailableBookings(
+            bookings.filter(
+              (booking: any) => !submittedBookingIds.has(String(booking.id)),
+            ),
+          ),
+        );
         setCurrentIndex(0);
       } catch (error: any) {
         console.log('Error fetching bookings:', error);
@@ -133,16 +162,19 @@ const AvailableBookingsScreen = ({navigation}: any) => {
           error.response?.data?.message || 'Failed to fetch available bookings',
         );
       } finally {
-        setLoading(false);
+        if (requestId === requestSequence.current) {
+          setLoading(false);
+        }
       }
     },
-    [currentLocation?.latitude, currentLocation?.longitude, dispatch],
+    [dispatch],
   );
 
   const getCurrentLocation = useCallback(async () => {
     try {
       const position = await fetchCurrentLocation();
       const {latitude, longitude} = position;
+      currentLocationRef.current = {latitude, longitude};
       setCurrentLocation({latitude, longitude});
       await fetchAvailableBookings(latitude, longitude);
     } catch (error) {
@@ -161,6 +193,9 @@ const AvailableBookingsScreen = ({navigation}: any) => {
       }
     };
     void initialize();
+    return () => {
+      requestSequence.current += 1;
+    };
   }, [fetchAvailableBookings, getCurrentLocation]);
 
   useEffect(() => {
@@ -198,6 +233,9 @@ const AvailableBookingsScreen = ({navigation}: any) => {
   }, [availableBookings.length, currentIndex]);
 
   const handlePlaceBid = async () => {
+    if (actionInFlight.current) {
+      return;
+    }
     if (!currentBooking) {
       Alert.alert('Wait', 'Refreshing booking details. Please try again.');
       return;
@@ -220,6 +258,7 @@ const AvailableBookingsScreen = ({navigation}: any) => {
     }
 
     try {
+      actionInFlight.current = true;
       setLoading(true);
       const response = await api.post('/bids', null, {
         params: {
@@ -228,7 +267,15 @@ const AvailableBookingsScreen = ({navigation}: any) => {
         },
       });
 
-      dispatch(addBid(response.data));
+      dispatch(
+        addBid({
+          ...response.data,
+          id: String(response.data.id),
+          bookingId: String(response.data.booking?.id || currentBooking.id),
+          amount: Number(response.data.bidAmount || amount),
+        }),
+      );
+      dispatch(removeAvailableBooking(String(currentBooking.id)));
       Alert.alert('Success', 'Bid placed successfully!');
       setBidAmount('');
       handleNext();
@@ -238,24 +285,33 @@ const AvailableBookingsScreen = ({navigation}: any) => {
         error.response?.data?.message || 'Failed to place bid',
       );
     } finally {
+      actionInFlight.current = false;
       setLoading(false);
     }
   };
 
   const handleAcceptUserPrice = async () => {
-    if (!currentBooking) return;
+    if (!currentBooking || actionInFlight.current) {
+      return;
+    }
     try {
+      actionInFlight.current = true;
       setLoading(true);
       const response = await api.post(`/bookings/${currentBooking.id}/accept-user-price`);
       Alert.alert('Success', 'You have accepted this ride!');
-      dispatch(setAvailableBookings([]));
-      navigation.navigate('ActiveBooking');
+      dispatch(setActiveBooking(response.data));
+      dispatch(removeAvailableBooking(String(currentBooking.id)));
+      navigation.replace('RideTracking', {
+        booking: response.data,
+        bookingId: Number(response.data.id),
+      });
     } catch (error: any) {
       Alert.alert(
         'Error',
         error.response?.data?.message || 'Failed to accept booking',
       );
     } finally {
+      actionInFlight.current = false;
       setLoading(false);
     }
   };
@@ -430,7 +486,11 @@ const AvailableBookingsScreen = ({navigation}: any) => {
           styles.cardContainer,
           {paddingBottom: Math.max(insets.bottom + 84, 96)},
         ]}>
-        <View style={styles.card}>
+        <View
+          style={[
+            styles.card,
+            {maxHeight: Math.min(520, Math.max(320, windowHeight * 0.58))},
+          ]}>
           <CardGradient radius={24} />
           <ScrollView
             style={styles.cardScroll}
@@ -647,7 +707,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 24,
     padding: 18,
-    maxHeight: 440,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: -4},
     shadowOpacity: 0.4,
@@ -655,7 +714,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   cardScroll: {
-    maxHeight: 404,
+    flexShrink: 1,
   },
   cardScrollContent: {
     paddingBottom: 6,

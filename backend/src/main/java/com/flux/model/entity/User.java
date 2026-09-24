@@ -22,6 +22,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "users")
@@ -72,9 +73,11 @@ public class User {
     @Builder.Default
     private Boolean notificationsEnabled = true;
     
+    @JsonIgnore
     private String fcmToken;
     
     @Column(length = 4)
+    @JsonIgnore
     private String fixedOtp;
     
     @CreatedDate

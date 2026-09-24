@@ -86,6 +86,7 @@ DerivedData/
 *.aab
 dist/
 coverage/
-flux-production-key.pem.gradle-home/
+flux-production-key.pem
+.gradle-home/
 dummy_key.pem
 *.pem

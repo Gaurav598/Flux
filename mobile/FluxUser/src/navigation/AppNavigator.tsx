@@ -65,6 +65,14 @@ const routeUserByBooking = async (bookingId: string) => {
       });
       return;
     }
+    if (
+      status === 'CANCELLED_BY_USER' ||
+      status === 'CANCELLED_BY_RIDER' ||
+      status === 'NO_RIDERS_AVAILABLE'
+    ) {
+      navigationRef.resetRoot({index: 0, routes: [{name: 'UserHome'}]});
+      return;
+    }
     if (status === 'ACCEPTED' || status === 'RIDER_EN_ROUTE') {
       navigationRef.resetRoot({
         index: 0,

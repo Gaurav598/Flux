@@ -10,12 +10,17 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bookings")
+@Table(name = "bookings", indexes = {
+        @Index(name = "idx_booking_user_status", columnList = "user_id,status"),
+        @Index(name = "idx_booking_rider_status", columnList = "rider_id,status"),
+        @Index(name = "idx_booking_status_bidding_end", columnList = "status,bidding_end_time")
+})
 @Data
 @Builder
 @NoArgsConstructor
@@ -33,6 +38,9 @@ public class Booking {
     
     @ManyToOne
     @JoinColumn(name = "rider_id")
+    @JsonIgnoreProperties({"bankAccountNumber", "bankIfscCode", "bankAccountHolderName",
+            "drivingLicenseUrl", "aadharCardUrl", "panCardUrl", "vehicleRcUrl",
+            "vehicleInsuranceUrl", "vehiclePucUrl", "selfieWithVehicleUrl"})
     private Rider rider;
     
     @Enumerated(EnumType.STRING)
@@ -78,8 +86,19 @@ public class Booking {
     private Double riderEarning;
     
     @Column(length = 4)
-    @JsonProperty("verificationOtp")
+    @JsonIgnore
     private String verificationOtp;
+
+    @JsonIgnore
+    private LocalDateTime verificationOtpExpiresAt;
+
+    @JsonIgnore
+    @Builder.Default
+    private Integer verificationOtpAttempts = 0;
+
+    @Version
+    @JsonIgnore
+    private Long version;
     
     private Double userEnteredAmount;
     

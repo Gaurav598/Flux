@@ -40,8 +40,7 @@ public class RiderService {
             User user = userService.getUserById(userId);
             Rider rider = Rider.builder()
                     .user(user)
-                    .status(RiderStatus.ACTIVE) // Default to active for now
-                    .vehicleType("Auto") // Default vehicle type
+                    .status(RiderStatus.PENDING)
                     .averageRating(5.0)
                     .totalRides(0)
                     .totalRatings(0)
@@ -49,7 +48,7 @@ public class RiderService {
                     .acceptanceRate(100.0)
                     .build();
             Rider savedRider = riderRepository.save(rider);
-            log.info("Auto-created rider profile for user: {}", userId);
+            log.info("Created pending rider profile for user: {}", userId);
             return savedRider;
         }
     }
@@ -81,6 +80,28 @@ public class RiderService {
     public Rider getRiderById(Long riderId) {
         return riderRepository.findById(riderId)
                 .orElseThrow(() -> new RuntimeException("Rider not found"));
+    }
+
+    @Transactional
+    public Rider getRiderByIdWithLock(Long riderId) {
+        return riderRepository.findByIdWithLock(riderId)
+                .orElseThrow(() -> new RuntimeException("Rider not found"));
+    }
+
+    public void requireEligibleForTrips(Rider rider) {
+        if (rider.getStatus() != RiderStatus.AVAILABLE
+                && rider.getStatus() != RiderStatus.ACTIVE
+                && rider.getStatus() != RiderStatus.OFFLINE) {
+            throw new IllegalStateException("Rider must be approved and available");
+        }
+        if (!Boolean.TRUE.equals(rider.getSubscriptionActive())
+                || rider.getSubscriptionEndDate() == null
+                || !rider.getSubscriptionEndDate().isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException("An active rider subscription is required");
+        }
+        if (rider.getVehicleType() == null || rider.getVehicleType().isBlank()) {
+            throw new IllegalStateException("A verified vehicle type is required");
+        }
     }
 
     public Rider getRiderByUserId(Long userId) {
@@ -178,9 +199,31 @@ public class RiderService {
     @Transactional
     public void updateRiderLocation(Long riderId, Double latitude, Double longitude) {
         Rider rider = getRiderById(riderId);
+        if (latitude == null || latitude < -90 || latitude > 90
+                || longitude == null || longitude < -180 || longitude > 180) {
+            throw new IllegalArgumentException("Invalid location coordinates");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (rider.getLastLocationUpdate() != null
+                && rider.getLastLocationUpdate().plusSeconds(2).isAfter(now)) {
+            throw new IllegalStateException("Location updates are limited to one every 2 seconds");
+        }
         rider.setCurrentLatitude(latitude);
         rider.setCurrentLongitude(longitude);
-        rider.setLastLocationUpdate(LocalDateTime.now());
+        rider.setLastLocationUpdate(now);
+        riderRepository.save(rider);
+    }
+
+    @Transactional
+    public void updateOwnAvailability(Long riderId, RiderStatus status) {
+        if (status != RiderStatus.AVAILABLE && status != RiderStatus.OFFLINE) {
+            throw new IllegalArgumentException("Riders may only select AVAILABLE or OFFLINE");
+        }
+        Rider rider = getRiderById(riderId);
+        if (status == RiderStatus.AVAILABLE) {
+            requireEligibleForTrips(rider);
+        }
+        rider.setStatus(status);
         riderRepository.save(rider);
     }
 
@@ -235,18 +278,18 @@ public class RiderService {
         LocalDateTime startOfMonth = LocalDate.now().minusMonths(1).atStartOfDay();
 
         double earningsToday = completedBookings.stream()
-                .filter(b -> b.getUpdatedAt().isAfter(startOfDay))
-                .mapToDouble(b -> b.getRiderEarning() != null ? b.getRiderEarning() : (b.getFinalFare() != null ? b.getFinalFare() * 0.96 : 0.0))
+                .filter(b -> completedAt(b).isAfter(startOfDay))
+                .mapToDouble(this::riderEarning)
                 .sum();
 
         double earningsWeek = completedBookings.stream()
-                .filter(b -> b.getUpdatedAt().isAfter(startOfWeek))
-                .mapToDouble(b -> b.getRiderEarning() != null ? b.getRiderEarning() : (b.getFinalFare() != null ? b.getFinalFare() * 0.96 : 0.0))
+                .filter(b -> completedAt(b).isAfter(startOfWeek))
+                .mapToDouble(this::riderEarning)
                 .sum();
 
         double earningsMonth = completedBookings.stream()
-                .filter(b -> b.getUpdatedAt().isAfter(startOfMonth))
-                .mapToDouble(b -> b.getRiderEarning() != null ? b.getRiderEarning() : (b.getFinalFare() != null ? b.getFinalFare() * 0.96 : 0.0))
+                .filter(b -> completedAt(b).isAfter(startOfMonth))
+                .mapToDouble(this::riderEarning)
                 .sum();
 
         Map<String, Object> stats = new HashMap<>();
@@ -269,7 +312,7 @@ public class RiderService {
                     transaction.put("id", booking.getId());
                     transaction.put("bookingId", booking.getId());
                     transaction.put("type", "credit");
-                    transaction.put("amount", booking.getRiderEarning() != null ? booking.getRiderEarning() : (booking.getFinalFare() != null ? booking.getFinalFare() * 0.96 : 0.0));
+                    transaction.put("amount", riderEarning(booking));
                     transaction.put("title", "Ride Earning");
                     transaction.put("description", booking.getServiceType() + " - " + booking.getPickupAddress());
                     transaction.put("subtitle", "Booking #" + booking.getId());
@@ -279,6 +322,16 @@ public class RiderService {
                 .sorted((a, b) -> ((LocalDateTime) b.get("createdAt")).compareTo((LocalDateTime) a.get("createdAt")))
                 .limit(20)
                 .toList();
+    }
+
+    private double riderEarning(Booking booking) {
+        return booking.getRiderEarning() != null
+                ? booking.getRiderEarning()
+                : (booking.getFinalFare() != null ? booking.getFinalFare() : 0.0);
+    }
+
+    private LocalDateTime completedAt(Booking booking) {
+        return booking.getCompletedAt() != null ? booking.getCompletedAt() : booking.getUpdatedAt();
     }
 
     public List<Rider> getPendingRiders() {
@@ -299,6 +352,10 @@ public class RiderService {
 
     public long getRiderCountByStatus(RiderStatus status) {
         return riderRepository.countByStatus(status);
+    }
+
+    public long getOnlineRiderCount() {
+        return riderRepository.countByStatusIn(List.of(RiderStatus.AVAILABLE, RiderStatus.ON_RIDE));
     }
 
     public List<Rider> getAllRidersWithFilters(RiderStatus status, String search, String location) {

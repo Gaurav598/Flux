@@ -11,7 +11,12 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "payments")
+@Table(name = "payments", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_payment_transaction", columnNames = "transaction_id")
+}, indexes = {
+        @Index(name = "idx_payment_rider_created", columnList = "rider_id,created_at"),
+        @Index(name = "idx_payment_status", columnList = "status")
+})
 @Data
 @Builder
 @NoArgsConstructor

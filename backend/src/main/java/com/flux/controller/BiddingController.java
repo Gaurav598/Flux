@@ -1,12 +1,13 @@
 package com.flux.controller;
 
 import com.flux.model.entity.Bid;
+import com.flux.model.entity.Booking;
 import com.flux.model.entity.Rider;
 import com.flux.service.BiddingService;
 import com.flux.service.RiderService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,65 +16,49 @@ import java.util.List;
 @RequestMapping("/api/bids")
 @RequiredArgsConstructor
 public class BiddingController {
-
     private final BiddingService biddingService;
     private final RiderService riderService;
 
     @PostMapping
-    public ResponseEntity<?> placeBid(@RequestParam Long bookingId, 
-                                      @RequestParam Double bidAmount,
-                                      HttpServletRequest request) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            // Get or create rider profile for this user
-            Rider rider = riderService.getOrCreateRiderForUser(userId);
-            Bid bid = biddingService.placeBid(bookingId, rider.getId(), bidAmount);
-            return ResponseEntity.ok(bid);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public Bid placeBid(@RequestParam Long bookingId, @RequestParam Double bidAmount,
+                        HttpServletRequest request) {
+        Rider rider = riderService.getRiderByUserId(actorId(request));
+        return biddingService.placeBid(bookingId, rider.getId(), bidAmount);
     }
 
     @GetMapping("/booking/{bookingId}")
-    public ResponseEntity<?> getBookingBids(@PathVariable Long bookingId) {
-        try {
-            List<Bid> bids = biddingService.getBookingBids(bookingId);
-            return ResponseEntity.ok(bids);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public List<Bid> getBookingBids(@PathVariable Long bookingId, HttpServletRequest request) {
+        return biddingService.getBookingBids(bookingId, actorId(request), actorRole(request));
     }
 
     @PostMapping("/{bidId}/accept")
-    public ResponseEntity<?> acceptBid(@PathVariable Long bidId) {
-        try {
-            var result = biddingService.acceptBid(bidId);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('USER')")
+    public Booking acceptBid(@PathVariable Long bidId, HttpServletRequest request) {
+        return biddingService.acceptBid(bidId, actorId(request));
     }
-    
+
     @PostMapping("/verify-otp")
-    public ResponseEntity<?> verifyOtpAndStartRide(@RequestParam Long bookingId, 
-                                                    @RequestParam String otp,
-                                                    HttpServletRequest request) {
-        try {
-            Long riderId = (Long) request.getAttribute("userId");
-            var booking = biddingService.verifyOtpAndStartRide(bookingId, riderId, otp);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public Booking verifyOtpAndStartRide(@RequestParam Long bookingId, @RequestParam String otp,
+                                         HttpServletRequest request) {
+        return biddingService.verifyOtpAndStartRide(bookingId, actorId(request), otp);
     }
 
     @PostMapping("/broadcast/{bookingId}")
-    public ResponseEntity<?> broadcastBooking(@PathVariable Long bookingId) {
-        try {
-            biddingService.broadcastBookingToNearbyRiders(bookingId);
-            return ResponseEntity.ok("Booking broadcasted to nearby riders");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('ADMIN')")
+    public String broadcastBooking(@PathVariable Long bookingId) {
+        biddingService.broadcastBookingToNearbyRiders(bookingId);
+        return "Booking broadcasted to nearby riders";
+    }
+
+    private Long actorId(HttpServletRequest request) {
+        Long id = (Long) request.getAttribute("userId");
+        if (id == null) throw new IllegalStateException("Authenticated user is missing");
+        return id;
+    }
+
+    private String actorRole(HttpServletRequest request) {
+        return String.valueOf(request.getAttribute("userRole"));
     }
 }

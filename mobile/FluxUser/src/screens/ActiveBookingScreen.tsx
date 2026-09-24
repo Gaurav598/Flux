@@ -166,15 +166,23 @@ const ActiveBookingScreen = () => {
         }
         Alert.alert(
           'Rider Cancelled',
-          'The rider has cancelled. Finding another rider for you...',
+          'The rider has cancelled this booking. You can create a new request from Home.',
           [
             {
               text: 'OK',
-              onPress: () =>
-                (navigation as any).replace('BidSelection', {bookingId}),
+              onPress: () => (navigation as any).replace('Home'),
             },
           ],
         );
+      } else if (
+        newBooking.status === 'CANCELLED_BY_USER' &&
+        !cancelledHandled.current
+      ) {
+        cancelledHandled.current = true;
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        (navigation as any).replace('Home');
       }
     } catch (error) {
       console.log('Error fetching booking:', error);
@@ -185,13 +193,13 @@ const ActiveBookingScreen = () => {
 
   const fetchUserOtp = useCallback(async () => {
     try {
-      const response = await api.get('/user/profile');
-      setUserOtp(response.data.fixedOtp || '0000');
+      const response = await api.get(`/bookings/${bookingId}/verification-otp`);
+      setUserOtp(String(response.data?.otp || ''));
     } catch (error) {
-      console.log('Error fetching user OTP:', error);
-      setUserOtp('0000');
+      console.log('Verification OTP is not available yet:', error);
+      setUserOtp('');
     }
-  }, []);
+  }, [bookingId]);
 
   useEffect(() => {
     if (!Number.isFinite(bookingId) || bookingId <= 0) {
@@ -200,7 +208,6 @@ const ActiveBookingScreen = () => {
     }
 
     fetchBookingDetails();
-    fetchUserOtp();
     intervalRef.current = setInterval(fetchBookingDetails, 7000);
     return () => {
       if (intervalRef.current) {
@@ -208,6 +215,14 @@ const ActiveBookingScreen = () => {
       }
     };
   }, [bookingId, fetchBookingDetails, fetchUserOtp]);
+
+  useEffect(() => {
+    if (booking?.status === 'RIDER_ARRIVED') {
+      fetchUserOtp();
+    } else {
+      setUserOtp('');
+    }
+  }, [booking?.status, fetchUserOtp]);
 
   useEffect(() => {
     if (booking && booking.rider && mapRef.current) {
@@ -434,8 +449,7 @@ const ActiveBookingScreen = () => {
           </Text>
         </View>
 
-        {(booking.status === 'ACCEPTED' ||
-          booking.status === 'RIDER_ARRIVED') && (
+        {booking.status === 'RIDER_ARRIVED' && userOtp !== '' && (
           <View style={styles.otpCard}>
             <Text style={styles.otpLabel}>Share this OTP with rider</Text>
             <Text style={styles.otpValue}>{userOtp}</Text>

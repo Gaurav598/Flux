@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet, View, ActivityIndicator, StatusBar} from 'react-native';
+import {View, ActivityIndicator, StatusBar} from 'react-native';
 import {Provider, useDispatch, useSelector} from 'react-redux';
 import {store, RootState, AppDispatch} from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -42,16 +42,5 @@ const App = () => (
     <RootGate />
   </Provider>
 );
-
-const styles = StyleSheet.create({
-  splashContainer: {
-    flex: 1,
-  },
-  splashImage: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-});
 
 export default App;

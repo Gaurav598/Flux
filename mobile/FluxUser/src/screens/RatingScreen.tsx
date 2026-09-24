@@ -5,11 +5,14 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
   ScrollView,
   Animated,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {useSelector} from 'react-redux';
 import {RootState} from '../store';
 import api from '../config/api';
@@ -31,6 +34,9 @@ const RatingScreen = ({navigation, route}: any) => {
   const [selectedReason, setSelectedReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const submitInFlight = useRef(false);
+  const {height, fontScale} = useWindowDimensions();
+  const needsScrolling = height < 820 || fontScale > 1.15;
   const {currentBooking} = useSelector((state: RootState) => state.booking);
 
   const complaintReasons = [
@@ -57,6 +63,9 @@ const RatingScreen = ({navigation, route}: any) => {
   }, [navigation]);
 
   const handleSubmitRating = async () => {
+    if (submitInFlight.current) {
+      return;
+    }
     if (rating === 0) {
       Alert.alert('Error', 'Please select a rating');
       return;
@@ -70,6 +79,7 @@ const RatingScreen = ({navigation, route}: any) => {
       return;
     }
 
+    submitInFlight.current = true;
     setSubmitting(true);
     try {
       const finalBookingId = bookingId || currentBooking?.id;
@@ -90,6 +100,7 @@ const RatingScreen = ({navigation, route}: any) => {
     } catch (error: any) {
       Alert.alert('Error', safeErrorMessage(error, 'Failed to submit rating'));
     } finally {
+      submitInFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -137,7 +148,15 @@ const RatingScreen = ({navigation, route}: any) => {
 
   return (
     <SafeAreaView className="flex-1" style={{backgroundColor: colors.bg}}>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{flexGrow: 1}}
+        scrollEnabled={needsScrolling}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
         <View className="px-6 pt-4 pb-10">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -287,6 +306,7 @@ const RatingScreen = ({navigation, route}: any) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

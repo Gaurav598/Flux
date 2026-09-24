@@ -13,7 +13,7 @@ services:
     networks:
       - flux-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,26 +70,29 @@ services:
       FIREBASE_CREDENTIALS_PATH: /opt/flux/firebase-service-account.json
       FIREBASE_API_KEY: ${FIREBASE_API_KEY}
       DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_HOST: redis
       KAFKA_SERVERS: kafka:9092
     volumes:
       - ./firebase-service-account.json:/opt/flux/firebase-service-account.json
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - flux-network
     restart: unless-stopped
-
-  dashboard:
-    build: ./dashboard
-    container_name: flux-dashboard
-    ports:
-      - "3000:80"
-    networks:
-      - flux-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
   admin-dashboard:
     build: ./admin-dashboard
@@ -98,6 +101,9 @@ services:
       - "3001:80"
     networks:
       - flux-network
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

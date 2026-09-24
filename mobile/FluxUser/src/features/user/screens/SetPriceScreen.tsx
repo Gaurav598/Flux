@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native';
 import {ArrowLeft, Plus, Edit3} from 'lucide-react-native';
 import {createRideRequest} from '../../../services/rideService';

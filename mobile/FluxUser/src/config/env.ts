@@ -4,14 +4,28 @@ import {
   LOCATION_IQ_API_KEY as LOCATION_IQ_API_KEY_ENV,
 } from '@env';
 
-const PRODUCTION_API_BASE_URL = 'http://13.206.15.170:8080/api';
-const PRODUCTION_SOCKET_URL = 'http://13.206.15.170:8080';
+const DEVELOPMENT_API_BASE_URL = 'http://localhost:8080/api';
 
-// Release builds ignore @env so a stale Metro/dotenv cache cannot ship a dead API host.
-export const API_BASE_URL = __DEV__
-  ? API_URL_ENV || PRODUCTION_API_BASE_URL
-  : PRODUCTION_API_BASE_URL;
-export const SOCKET_URL = __DEV__
-  ? SOCKET_URL_ENV || PRODUCTION_SOCKET_URL
-  : PRODUCTION_SOCKET_URL;
+const requireSecureReleaseUrl = (value: string | undefined, name: string): string => {
+  const resolved = value?.trim();
+  if (!resolved) {
+    if (__DEV__) {
+      return name === 'API_BASE_URL'
+        ? DEVELOPMENT_API_BASE_URL
+        : DEVELOPMENT_API_BASE_URL.replace(/\/api$/, '');
+    }
+    throw new Error(`${name} must be configured for a release build`);
+  }
+
+  if (!__DEV__ && !resolved.startsWith('https://')) {
+    throw new Error(`${name} must use HTTPS in a release build`);
+  }
+  return resolved.replace(/\/$/, '');
+};
+
+export const API_BASE_URL = requireSecureReleaseUrl(API_URL_ENV, 'API_BASE_URL');
+export const SOCKET_URL = requireSecureReleaseUrl(
+  SOCKET_URL_ENV || API_BASE_URL.replace(/\/api$/, ''),
+  'SOCKET_URL',
+);
 export const LOCATION_IQ_API_KEY = LOCATION_IQ_API_KEY_ENV || '';

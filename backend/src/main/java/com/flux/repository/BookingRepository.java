@@ -18,12 +18,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByUserId(Long userId);
     List<Booking> findByRiderId(Long riderId);
     List<Booking> findByStatus(BookingStatus status);
+    List<Booking> findByStatusIn(List<BookingStatus> statuses);
+    long countByStatusIn(List<BookingStatus> statuses);
     List<Booking> findByUserIdAndStatus(Long userId, BookingStatus status);
     List<Booking> findByRiderIdAndStatus(Long riderId, BookingStatus status);
     List<Booking> findByUserIdAndStatusIn(Long userId, List<BookingStatus> statuses);
     List<Booking> findByRiderIdAndStatusIn(Long riderId, List<BookingStatus> statuses);
+    Optional<Booking> findFirstByUserIdAndStatusInOrderByUpdatedAtDesc(Long userId, List<BookingStatus> statuses);
+    Optional<Booking> findFirstByRiderIdAndStatusInOrderByUpdatedAtDesc(Long riderId, List<BookingStatus> statuses);
     long countByStatus(BookingStatus status);
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+    List<Booking> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     @Query("SELECT COALESCE(SUM(b.companyCommission), 0.0) FROM Booking b WHERE b.status = 'COMPLETED' AND b.completedAt BETWEEN :start AND :end")
     Double sumCompanyCommissionBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

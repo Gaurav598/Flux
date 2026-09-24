@@ -100,7 +100,7 @@ public class RiderController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             Rider rider = riderService.getOrCreateRiderForUser(userId);
-            riderService.updateRiderStatus(rider.getId(), status);
+            riderService.updateOwnAvailability(rider.getId(), status);
             return ResponseEntity.ok("Status updated");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

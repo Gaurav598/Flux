@@ -27,9 +27,9 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Build with Gradle (skip tests)
+      - name: Build and test with Gradle
         working-directory: ./backend
-        run: gradle build -x test --no-daemon
+        run: ./gradlew clean build --no-daemon
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -68,7 +68,9 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/flux-backend:latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/flux-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/flux-backend:latest
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/flux-backend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/flux-backend:buildcache,mode=max
 
@@ -99,11 +101,12 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          FLUX_IMAGE_TAG: ${{ github.sha }}
         with:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: PRODUCTION_ENV_FILE,FIREBASE_SERVICE_ACCOUNT_JSON,DOCKER_USERNAME,DOCKER_PASSWORD
+          envs: PRODUCTION_ENV_FILE,FIREBASE_SERVICE_ACCOUNT_JSON,DOCKER_USERNAME,DOCKER_PASSWORD,FLUX_IMAGE_TAG
           script: |
             set -euo pipefail
 
@@ -124,8 +127,8 @@ jobs:
               sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/docker-compose.prod.yml" ./docker-compose.yml || true
             fi
             if [ -f "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/infra/nginx/flux.conf" ]; then
-              sudo mkdir -p ./nginx
-              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/infra/nginx/flux.conf" ./nginx/flux.conf || true
+              sudo mkdir -p ./infra/nginx
+              sudo mv "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp/infra/nginx/flux.conf" ./infra/nginx/flux.conf
             fi
             # Clean up the temporary directory
             rm -rf "/home/${{ secrets.PRODUCTION_USER }}/deploy_tmp" || true
@@ -133,6 +136,7 @@ jobs:
             # Write the .env file from GitHub Secret
             echo "$PRODUCTION_ENV_FILE" | sudo tee .env > /dev/null
             echo "DOCKER_USERNAME=$DOCKER_USERNAME" | sudo tee -a .env > /dev/null
+            echo "FLUX_IMAGE_TAG=$FLUX_IMAGE_TAG" | sudo tee -a .env > /dev/null
 
             # Write the Firebase service account JSON from GitHub Secret
             echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | sudo tee firebase-service-account.json > /dev/null

@@ -28,6 +28,9 @@ public class PaymentService {
     @Value("${app.subscription.amount}")
     private Double subscriptionAmount;
 
+    @Value("${app.subscription.free-tier-enabled:false}")
+    private boolean freeTierEnabled;
+
     /**
      * Grants the rider a free subscription immediately without any payment.
      */
@@ -60,14 +63,24 @@ public class PaymentService {
 
     // --- PaymentController stubs (used by REST API) ---
 
-    public String createSubscriptionIntent(Long riderId) {
-        // Auto-activate for free and return a dummy token
-        createFreeSubscription(riderId);
+    @Transactional
+    public String createSubscriptionIntent(Long riderUserId) {
+        if (!freeTierEnabled) {
+            throw new IllegalStateException("Subscription payments are not configured");
+        }
+        Rider rider = riderService.getRiderByUserId(riderUserId);
+        createFreeSubscription(rider.getId());
         return "FREE_SUBSCRIPTION_ACTIVATED";
     }
 
-    public Payment confirmSubscription(Long riderId, String paymentIntentId) {
-        return createFreeSubscription(riderId);
+    @Transactional
+    public Payment confirmSubscription(Long riderUserId, String paymentIntentId) {
+        if (!freeTierEnabled || !"FREE_SUBSCRIPTION_ACTIVATED".equals(paymentIntentId)) {
+            throw new IllegalStateException("Subscription payments are not configured");
+        }
+        Rider rider = riderService.getRiderByUserId(riderUserId);
+        return paymentRepository.findFirstByRiderIdAndStatusOrderByCreatedAtDesc(rider.getId(), "ACTIVE")
+                .orElseGet(() -> createFreeSubscription(rider.getId()));
     }
 
     public void handleStripeWebhook(String payload, String signature) {
@@ -76,7 +89,12 @@ public class PaymentService {
     }
 
     public String getSubscriptionStatus(Long userId) {
-        return "ACTIVE";
+        Rider rider = riderService.getRiderByUserId(userId);
+        return Boolean.TRUE.equals(rider.getSubscriptionActive())
+                && rider.getSubscriptionEndDate() != null
+                && rider.getSubscriptionEndDate().isAfter(LocalDateTime.now())
+                ? "ACTIVE"
+                : "INACTIVE";
     }
 
     // --- Query methods ---
@@ -90,7 +108,20 @@ public class PaymentService {
     }
 
     public long getTotalRevenueToday() {
-        // No revenue while Stripe is disabled
-        return 0;
+        LocalDateTime start = java.time.LocalDate.now().atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
+        return Math.round(paymentRepository.findByCreatedAtBetween(start, end).stream()
+                .filter(payment -> "SUCCEEDED".equalsIgnoreCase(payment.getStatus())
+                        || "ACTIVE".equalsIgnoreCase(payment.getStatus()))
+                .mapToDouble(payment -> payment.getAmount() == null ? 0.0 : payment.getAmount())
+                .sum());
+    }
+
+    public double getTotalRevenue() {
+        return paymentRepository.findAll().stream()
+                .filter(payment -> "SUCCEEDED".equalsIgnoreCase(payment.getStatus())
+                        || "ACTIVE".equalsIgnoreCase(payment.getStatus()))
+                .mapToDouble(payment -> payment.getAmount() == null ? 0.0 : payment.getAmount())
+                .sum();
     }
 }

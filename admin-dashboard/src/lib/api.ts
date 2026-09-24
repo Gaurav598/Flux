@@ -5,6 +5,7 @@ const BASE_URL = (import.meta.env.VITE_API_URL as string) || '';
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api/admin`,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,6 +14,7 @@ const api = axios.create({
 // Auth axios instance — no /admin prefix, for /api/auth/admin/login
 const authApi = axios.create({
   baseURL: `${BASE_URL}/api/auth`,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -56,7 +58,27 @@ export const logoutAdmin = (): void => {
 };
 
 export const isAuthenticated = (): boolean => {
-  return !!localStorage.getItem('adminToken');
+  const token = localStorage.getItem('adminToken');
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) {
+      logoutAdminSession();
+      return false;
+    }
+    return true;
+  } catch {
+    logoutAdminSession();
+    return false;
+  }
+};
+
+const logoutAdminSession = (): void => {
+  localStorage.removeItem('adminToken');
+  localStorage.removeItem('adminUserId');
 };
 
 export const adminApi = {

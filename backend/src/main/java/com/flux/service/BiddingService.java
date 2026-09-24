@@ -17,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
+import java.time.LocalDateTime;
+import org.springframework.security.access.AccessDeniedException;
 
 @Service  
 @RequiredArgsConstructor 
@@ -30,7 +31,6 @@ public class BiddingService {
     private final RiderService riderService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
-    private final Random random = new Random();
 
     @Value("${app.bidding.min-bid}")
     private Double minBid;
@@ -40,8 +40,18 @@ public class BiddingService {
 
     @Transactional
     public Bid placeBid(Long bookingId, Long riderId, Double bidAmount) {
-        Booking booking = bookingService.getBookingById(bookingId);
-        Rider rider = riderService.getRiderById(riderId);
+        Booking booking = bookingRepository.findByIdWithLock(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        Rider rider = riderService.getRiderByIdWithLock(riderId);
+        if (booking.getStatus() != BookingStatus.BIDDING
+                || booking.getBiddingEndTime() == null
+                || !LocalDateTime.now().isBefore(booking.getBiddingEndTime())) {
+            throw new IllegalStateException("The bidding window has expired");
+        }
+        riderService.requireEligibleForTrips(rider);
+        if (bidAmount == null || bidAmount < minBid || bidAmount > maxBid) {
+            throw new IllegalArgumentException("Bid must be between ₹" + minBid + " and ₹" + maxBid);
+        }
         List<BookingStatus> activeStatuses = List.of(
                 BookingStatus.ACCEPTED,
                 BookingStatus.RIDER_EN_ROUTE,
@@ -88,7 +98,11 @@ public class BiddingService {
         return savedBid;
     }
 
-    public List<Bid> getBookingBids(Long bookingId) {
+    public List<Bid> getBookingBids(Long bookingId, Long actorUserId, String actorRole) {
+        Booking booking = bookingService.getBookingById(bookingId);
+        if (!booking.getUser().getId().equals(actorUserId) && !"ADMIN".equalsIgnoreCase(actorRole)) {
+            throw new AccessDeniedException("Only the booking owner can view its bids");
+        }
         return bidRepository.findByBookingId(bookingId);
     }
 
@@ -97,7 +111,7 @@ public class BiddingService {
     }
 
     @Transactional
-    public Booking acceptBid(Long bidId) {
+    public Booking acceptBid(Long bidId, Long actorUserId) {
         Bid bid = bidRepository.findById(bidId)
                 .orElseThrow(() -> new RuntimeException("Bid not found"));
 
@@ -105,6 +119,19 @@ public class BiddingService {
         // two concurrent riders from simultaneously passing the BIDDING guard.
         Booking freshBooking = bookingRepository.findByIdWithLock(bid.getBooking().getId())
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
+        bid = bidRepository.findByIdWithLock(bidId)
+                .orElseThrow(() -> new RuntimeException("Bid not found"));
+
+        if (!freshBooking.getUser().getId().equals(actorUserId)) {
+            throw new AccessDeniedException("Only the booking owner can accept a bid");
+        }
+
+        if (freshBooking.getStatus() == BookingStatus.ACCEPTED
+                && bid.getStatus() == BidStatus.ACCEPTED
+                && freshBooking.getRider() != null
+                && freshBooking.getRider().getId().equals(bid.getRider().getId())) {
+            return freshBooking;
+        }
 
         // Atomic guard: booking must still be in BIDDING status
         if (freshBooking.getStatus() != BookingStatus.BIDDING) {
@@ -116,16 +143,19 @@ public class BiddingService {
             throw new RuntimeException("This bid is no longer valid.");
         }
 
-        List<BookingStatus> activeStatuses = List.of(
-                BookingStatus.ACCEPTED,
-                BookingStatus.RIDER_EN_ROUTE,
-                BookingStatus.RIDER_ARRIVED,
-                BookingStatus.IN_PROGRESS
-        );
+        if (freshBooking.getBiddingEndTime() == null
+                || !LocalDateTime.now().isBefore(freshBooking.getBiddingEndTime())) {
+            throw new IllegalStateException("The bidding window has expired");
+        }
+
+        Rider lockedRider = riderService.getRiderByIdWithLock(bid.getRider().getId());
+        riderService.requireEligibleForTrips(lockedRider);
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.ACCEPTED,
+                BookingStatus.RIDER_EN_ROUTE, BookingStatus.RIDER_ARRIVED, BookingStatus.IN_PROGRESS);
         boolean hasActiveRide = bookingRepository
                 .findByRiderIdAndStatusIn(bid.getRider().getId(), activeStatuses)
                 .stream()
-                .anyMatch(b -> !b.getId().equals(bid.getBooking().getId()));
+                .anyMatch(b -> !b.getId().equals(freshBooking.getId()));
         if (hasActiveRide) {
             throw new RuntimeException("Rider already has an active ride. Cannot accept another booking.");
         }
@@ -150,62 +180,19 @@ public class BiddingService {
             }
         }
 
-        Booking booking = bookingService.acceptBid(bid.getBooking().getId(), bid.getRider().getId());
+        Booking booking = bookingService.acceptBid(bid.getBooking().getId(), lockedRider.getId());
         booking.setFinalFare(bid.getBidAmount());
-        riderService.updateRiderStatus(bid.getRider().getId(), RiderStatus.ON_RIDE);
+        riderService.updateRiderStatus(lockedRider.getId(), RiderStatus.ON_RIDE);
 
-        // Generate 4-digit OTP for verification
-        String otp = String.format("%04d", random.nextInt(10000));
-        booking.setVerificationOtp(otp);
         bookingRepository.save(booking);
 
-        // Notify rider that bid was accepted (without OTP - rider must ask user for OTP)
-        notificationService.notifyRiderWithType(
-                bid.getRider().getId(),
-                "Bid Accepted!",
-                "User accepted your bid. Navigate to pickup location.",
-                "RIDE_ACCEPTED",
-                booking.getId()
-        );
-        
-        // Notify user with OTP
-        notificationService.notifyUserWithType(
-                booking.getUser().getId(),
-                "Rider Assigned!",
-                "Your OTP is: " + otp + ". Share this with your rider when they arrive.",
-                "OTP_READY",
-                booking.getId()
-        );
-
-        log.info("Bid {} accepted for booking {}. OTP generated: {}", bidId, bid.getBooking().getId(), otp);
+        log.info("Bid {} accepted for booking {}", bidId, bid.getBooking().getId());
         return booking;
     }
 
     @Transactional
-    public Booking verifyOtpAndStartRide(Long bookingId, Long riderId, String otp) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found"));
-
-        if (booking.getRider() == null || !booking.getRider().getId().equals(riderId)) {
-            throw new RuntimeException("You are not assigned to this booking");
-        }
-
-        if (!booking.getStatus().equals(BookingStatus.ACCEPTED)) {
-            throw new RuntimeException("Booking is not in accepted state");
-        }
-
-        if (booking.getVerificationOtp() == null || !booking.getVerificationOtp().equals(otp)) {
-            throw new RuntimeException("Invalid OTP. Please check with the user and try again.");
-        }
-
-        // Clear OTP and start the ride
-        booking.setVerificationOtp(null);
-        booking.setStatus(BookingStatus.IN_PROGRESS);
-        booking.setStartedAt(java.time.LocalDateTime.now());
-        bookingRepository.save(booking);
-
-        log.info("OTP verified for booking {}. Ride started.", bookingId);
-        return booking;
+    public Booking verifyOtpAndStartRide(Long bookingId, Long riderUserId, String otp) {
+        return bookingService.verifyOtpAndStartRide(bookingId, riderUserId, otp);
     }
 
     @Transactional

@@ -29,10 +29,10 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final FirebaseOtpService firebaseOtpService;
 
-    @org.springframework.beans.factory.annotation.Value("${admin.username:admin}")
+    @org.springframework.beans.factory.annotation.Value("${admin.username:}")
     private String adminUsername;
 
-    @org.springframework.beans.factory.annotation.Value("${admin.password:flux@admin2026}")
+    @org.springframework.beans.factory.annotation.Value("${admin.password:}")
     private String adminPassword;
 
     /**
@@ -42,6 +42,10 @@ public class AuthController {
      */
     @PostMapping("/admin/login")
     public ResponseEntity<?> adminLogin(@RequestBody Map<String, String> credentials) {
+        if (adminUsername.isBlank() || adminPassword.isBlank()) {
+            log.error("Admin login attempted while ADMIN_USERNAME/ADMIN_PASSWORD are not configured");
+            return ResponseEntity.status(503).body(Map.of("message", "Admin authentication is not configured"));
+        }
         String username = credentials.getOrDefault("username", "");
         String password = credentials.getOrDefault("password", "");
 

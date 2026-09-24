@@ -80,6 +80,7 @@ const RideTrackingScreen = () => {
   >('ACCEPTED');
   const [loading, setLoading] = useState(false);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
+  const terminalHandled = useRef(false);
 
   const asCoordinate = (value: unknown, fallback: number) => {
     const num = Number(value);
@@ -96,6 +97,27 @@ const RideTrackingScreen = () => {
     }
     try {
       const response = await api.get(`/bookings/${resolvedBookingId}`);
+      const authoritativeStatus = String(response.data?.status || '').toUpperCase();
+      if (
+        authoritativeStatus === 'CANCELLED_BY_USER' ||
+        authoritativeStatus === 'CANCELLED_BY_RIDER' ||
+        authoritativeStatus === 'NO_RIDERS_AVAILABLE' ||
+        authoritativeStatus === 'COMPLETED'
+      ) {
+        if (!terminalHandled.current) {
+          terminalHandled.current = true;
+          Alert.alert(
+            authoritativeStatus === 'COMPLETED'
+              ? 'Ride Completed'
+              : 'Booking Cancelled',
+            authoritativeStatus === 'COMPLETED'
+              ? 'This ride is complete.'
+              : 'This booking is no longer active.',
+            [{text: 'OK', onPress: () => (navigation as any).replace('Home')}],
+          );
+        }
+        return;
+      }
       setBooking(response.data);
       const nextStatus = String(response.data?.status || 'ACCEPTED') as
         | 'ACCEPTED'
@@ -107,7 +129,7 @@ const RideTrackingScreen = () => {
     } catch (error) {
       console.log('Error fetching booking:', error);
     }
-  }, [resolvedBookingId]);
+  }, [navigation, resolvedBookingId]);
 
   const startLocationTracking = useCallback(async () => {
     if (watchIdRef.current !== null) {

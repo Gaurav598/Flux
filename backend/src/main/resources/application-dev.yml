@@ -1,0 +1,5 @@
+app:
+  subscription:
+    # Development-only opt-in. Production must use an implemented and verified
+    # payment provider before enabling rider subscriptions.
+    free-tier-enabled: ${FREE_SUBSCRIPTIONS_ENABLED:true}

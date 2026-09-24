@@ -44,6 +44,10 @@ const handleRiderNotificationOpen = async (remoteMessage: any) => {
   }
 
   if (bookingId) {
+    if (type === 'BOOKING_CANCELLED' || type === 'BID_REJECTED') {
+      navigationRef.resetRoot({index: 0, routes: [{name: 'Home'}]});
+      return;
+    }
     if (type === 'NEW_BOOKING') {
       navigationRef.resetRoot({index: 0, routes: [{name: 'AvailableBookings'}]});
       return;

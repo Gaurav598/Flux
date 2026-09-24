@@ -3,192 +3,143 @@ package com.flux.controller;
 import com.flux.dto.BookingRequest;
 import com.flux.model.entity.Booking;
 import com.flux.model.enums.BookingStatus;
-import com.flux.service.BookingService;
 import com.flux.service.BiddingService;
+import com.flux.service.BookingService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bookings")
 @RequiredArgsConstructor
 @Slf4j
 public class BookingController {
-
     private final BookingService bookingService;
     private final BiddingService biddingService;
 
     @PostMapping
-    public ResponseEntity<?> createBooking(@RequestBody BookingRequest bookingRequest, HttpServletRequest request) {
+    @PreAuthorize("hasRole('USER')")
+    public Booking createBooking(@Valid @RequestBody BookingRequest bookingRequest, HttpServletRequest request) {
+        Long userId = actorId(request);
+        Booking created = bookingService.createBookingFromRequest(userId, bookingRequest);
         try {
-            Long userId = (Long) request.getAttribute("userId");
-            Booking createdBooking = bookingService.createBookingFromRequest(userId, bookingRequest);
-            try {
-                biddingService.broadcastBookingToNearbyRiders(createdBooking.getId());
-            } catch (Exception broadcastError) {
-                log.warn("Booking {} created, but broadcast failed: {}", createdBooking.getId(), broadcastError.getMessage());
-            }
-            return ResponseEntity.ok(createdBooking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            biddingService.broadcastBookingToNearbyRiders(created.getId());
+        } catch (Exception error) {
+            log.warn("Booking {} persisted but its realtime broadcast failed", created.getId(), error);
         }
+        return created;
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getBooking(@PathVariable Long id) {
-        try {
-            Booking booking = bookingService.getBookingById(id);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public Booking getBooking(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.getBookingForActor(id, actorId(request), actorRole(request));
     }
 
     @GetMapping("/user/my-bookings")
-    public ResponseEntity<?> getMyBookings(HttpServletRequest request) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            List<Booking> bookings = bookingService.getUserBookings(userId);
-            return ResponseEntity.ok(bookings);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('USER')")
+    public List<Booking> getMyBookings(HttpServletRequest request) {
+        return bookingService.getUserBookings(actorId(request));
     }
 
     @GetMapping("/user/active")
-    public ResponseEntity<?> getUserActiveBooking(HttpServletRequest request) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            return bookingService.getUserActiveBooking(userId)
-                    .map(ResponseEntity::ok)
-                    .orElse(ResponseEntity.noContent().build());
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Booking> getUserActiveBooking(HttpServletRequest request) {
+        return bookingService.getUserActiveBooking(actorId(request))
+                .map(ResponseEntity::ok).orElse(ResponseEntity.noContent().build());
     }
 
     @GetMapping("/rider/my-bookings")
-    public ResponseEntity<?> getRiderBookings(HttpServletRequest request) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            List<Booking> bookings = bookingService.getRiderBookings(userId);
-            return ResponseEntity.ok(bookings);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public List<Booking> getRiderBookings(HttpServletRequest request) {
+        return bookingService.getRiderBookings(actorId(request));
     }
 
     @GetMapping("/rider/active")
-    public ResponseEntity<?> getRiderActiveBooking(HttpServletRequest request) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            return bookingService.getRiderActiveBooking(userId)
-                    .map(ResponseEntity::ok)
-                    .orElse(ResponseEntity.noContent().build());
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public ResponseEntity<Booking> getRiderActiveBooking(HttpServletRequest request) {
+        return bookingService.getRiderActiveBooking(actorId(request))
+                .map(ResponseEntity::ok).orElse(ResponseEntity.noContent().build());
     }
 
     @GetMapping("/available")
-    public ResponseEntity<?> getAvailableBookings(@RequestParam(required = false) Double latitude,
-                                                   @RequestParam(required = false) Double longitude,
-                                                   @RequestParam(defaultValue = "50.0") Double radius,
-                                                   HttpServletRequest request) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            String userRole = (String) request.getAttribute("userRole");
-            List<Booking> bookings = "RIDER".equalsIgnoreCase(userRole) && userId != null
-                    ? bookingService.getAvailableBookingsForRider(userId, latitude, longitude, radius)
-                    : bookingService.getAvailableBookings(latitude, longitude, radius);
-            return ResponseEntity.ok(bookings);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public List<Booking> getAvailableBookings(@RequestParam(required = false) Double latitude,
+                                              @RequestParam(required = false) Double longitude,
+                                              @RequestParam(defaultValue = "50.0") Double radius,
+                                              HttpServletRequest request) {
+        return bookingService.getAvailableBookingsForRider(actorId(request), latitude, longitude, radius);
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<?> updateBookingStatus(@PathVariable Long id, @RequestParam BookingStatus status) {
-        try {
-            Booking booking = bookingService.updateBookingStatus(id, status);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('ADMIN')")
+    public Booking updateBookingStatus(@PathVariable Long id, @RequestParam BookingStatus status,
+                                       HttpServletRequest request) {
+        return bookingService.updateBookingStatusAsActor(id, status, actorRole(request));
     }
 
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<?> cancelBooking(@PathVariable Long id, @RequestParam String reason, 
-                                           @RequestParam boolean byUser) {
-        try {
-            Booking booking = bookingService.cancelBooking(id, reason, byUser);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public Booking cancelBooking(@PathVariable Long id, @RequestParam String reason,
+                                 @RequestParam(required = false) Boolean byUser,
+                                 HttpServletRequest request) {
+        return bookingService.cancelBookingAsActor(id, reason, actorId(request), actorRole(request));
     }
 
     @PostMapping("/{id}/rate")
-    public ResponseEntity<?> rateBooking(@PathVariable Long id, 
-                                         @RequestParam(required = false) Integer userRating,
-                                         @RequestParam(required = false) String userReview,
-                                         @RequestParam(required = false) Integer riderRating,
-                                         @RequestParam(required = false) String riderReview) {
-        try {
-            Booking booking = bookingService.rateBooking(id, userRating, userReview, riderRating, riderReview);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public Booking rateBooking(@PathVariable Long id,
+                               @RequestParam(required = false) Integer userRating,
+                               @RequestParam(required = false) String userReview,
+                               @RequestParam(required = false) Integer riderRating,
+                               @RequestParam(required = false) String riderReview,
+                               HttpServletRequest request) {
+        return bookingService.rateBookingAsActor(id, actorId(request), userRating, userReview,
+                riderRating, riderReview);
     }
 
     @PostMapping("/{id}/rider-reached")
-    public ResponseEntity<?> markRiderReached(@PathVariable Long id, HttpServletRequest request) {
-        try {
-            Long riderId = (Long) request.getAttribute("userId");
-            Booking booking = bookingService.markRiderReached(id, riderId);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public Booking markRiderReached(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.markRiderReached(id, actorId(request));
     }
 
     @PostMapping("/{id}/accept-user-price")
-    public ResponseEntity<?> acceptUserPrice(@PathVariable Long id, HttpServletRequest request) {
-        try {
-            Long riderId = (Long) request.getAttribute("userId");
-            Booking booking = bookingService.acceptUserPrice(id, riderId);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public Booking acceptUserPrice(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.acceptUserPrice(id, actorId(request));
     }
 
     @PostMapping("/{id}/verify-otp")
-    public ResponseEntity<?> verifyOtpAndStartRide(@PathVariable Long id, 
-                                                    @RequestParam String otp,
-                                                    HttpServletRequest request) {
-        try {
-            Long riderId = (Long) request.getAttribute("userId");
-            Booking booking = bookingService.verifyOtpAndStartRide(id, riderId, otp);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public Booking verifyOtpAndStartRide(@PathVariable Long id, @RequestParam String otp,
+                                         HttpServletRequest request) {
+        return bookingService.verifyOtpAndStartRide(id, actorId(request), otp);
+    }
+
+    @GetMapping("/{id}/verification-otp")
+    @PreAuthorize("hasRole('USER')")
+    public Map<String, String> getVerificationOtp(@PathVariable Long id, HttpServletRequest request) {
+        return Map.of("otp", bookingService.getVerificationOtpForOwner(id, actorId(request)));
     }
 
     @PostMapping("/{id}/complete")
-    public ResponseEntity<?> completeRide(@PathVariable Long id, HttpServletRequest request) {
-        try {
-            Long riderId = (Long) request.getAttribute("userId");
-            Booking booking = bookingService.completeRide(id, riderId);
-            return ResponseEntity.ok(booking);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PreAuthorize("hasRole('RIDER')")
+    public Booking completeRide(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.completeRide(id, actorId(request));
+    }
+
+    private Long actorId(HttpServletRequest request) {
+        Long id = (Long) request.getAttribute("userId");
+        if (id == null) throw new IllegalStateException("Authenticated user is missing");
+        return id;
+    }
+
+    private String actorRole(HttpServletRequest request) {
+        return String.valueOf(request.getAttribute("userRole"));
     }
 }

@@ -5,8 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Platform,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {X, Bell, CheckCircle, AlertCircle} from 'lucide-react-native';
 import {useNotification} from '../context/NotificationContext';
 import {colors} from '../theme';
@@ -125,13 +125,16 @@ const NotificationItem: React.FC<{
 
 export const PopupNotifications: React.FC = () => {
   const {notifications} = useNotification();
+  const insets = useSafeAreaInsets();
 
   if (notifications.length === 0) {
     return null;
   }
 
   return (
-    <View style={styles.wrapper} pointerEvents="box-none">
+    <View
+      style={[styles.wrapper, {paddingTop: Math.max(insets.top + 8, 20)}]}
+      pointerEvents="box-none">
       {notifications.map(notification => (
         <NotificationItem
           key={notification.id}
@@ -153,7 +156,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 9999,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
     paddingHorizontal: 16,
   },
   container: {

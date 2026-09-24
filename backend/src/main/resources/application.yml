@@ -40,6 +40,10 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+admin:
+  username: ${ADMIN_USERNAME:}
+  password: ${ADMIN_PASSWORD:}
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 7776000000
@@ -66,6 +70,8 @@ firebase:
   credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
 
 app:
+  security:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3001,http://127.0.0.1:3001}
   bidding:
     window-seconds: 45
     min-bid: 40
@@ -73,3 +79,4 @@ app:
   subscription:
     amount: 500
     grace-period-days: 3
+    free-tier-enabled: ${FREE_SUBSCRIPTIONS_ENABLED:false}
