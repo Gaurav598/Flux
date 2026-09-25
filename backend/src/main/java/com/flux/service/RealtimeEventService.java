@@ -3,6 +3,7 @@ package com.flux.service;
 import com.flux.model.entity.Booking;
 import com.flux.model.entity.Rider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RealtimeEventService {
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -51,11 +53,21 @@ public class RealtimeEventService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    action.run();
+                    publishBestEffort(action);
                 }
             });
         } else {
+            publishBestEffort(action);
+        }
+    }
+
+    private void publishBestEffort(Runnable action) {
+        try {
             action.run();
+        } catch (RuntimeException exception) {
+            // PostgreSQL remains authoritative; clients reconcile by REST after broker failures.
+            log.warn("Realtime publication failed after the authoritative state was saved: {}",
+                    exception.getMessage());
         }
     }
 }

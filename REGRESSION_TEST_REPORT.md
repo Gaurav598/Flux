@@ -2,13 +2,15 @@
 
 ## Engineering-upgrade integration verification — 25 September 2026
 
-Branch: `codex/flux-engineering-upgrade-integration` (based on stabilization commit `7ab4398`)
+Branch: `codex/flux-engineering-upgrade-integration` (upgrade work based on `7ab4398`, reconciled with stabilization merge `2ea5370` and its shared mainline parent `5957941`)
 
 | Component | Command | Result | Actual evidence |
 |---|---|---:|---|
-| Backend tests | `cd backend && ./gradlew test --rerun-tasks --no-daemon` | PASS with skips | 25 tests discovered: 21 booking/state/security/notification/payment tests passed; 4 PostgreSQL Testcontainers concurrency tests skipped because Docker is unavailable. |
+| Backend tests | `cd backend && ./gradlew test --rerun-tasks --no-daemon` | PASS with skips | 26 tests discovered: 22 booking/state/security/notification/payment tests passed; 4 PostgreSQL Testcontainers concurrency tests skipped because Docker is unavailable. |
+| Backend clean build | `cd backend && ./gradlew clean build --no-daemon` | PASS with skips | Boot JAR, Java sources, test sources, checks, and tests completed successfully; the same 4 Docker-conditioned tests were skipped. |
 | FluxUser | `npx tsc --noEmit && npm test -- --runInBand` | PASS | TypeScript passed; 4 suites / 7 tests passed, including realtime reconnect behavior. |
 | FluxRider | `npx tsc --noEmit && npm test -- --runInBand` | PASS | TypeScript passed; 4 suites / 8 tests passed, including realtime reconnect behavior. |
+| Mobile lint | `npm run lint` in both apps | PASS with warnings | 0 errors; FluxUser reported 69 warnings and FluxRider 73 warnings, predominantly established inline-style/formatting rules. |
 | Admin | `npm run build` | PASS with warning | 2,566 modules built; output JS 676.23 kB (197.25 kB gzip). Vite reported the existing chunk-size warning. |
 | Compose | development and production `docker compose ... config --quiet` | PASS | Both configurations parsed with inert placeholder environment/TLS values; containers were not started. |
 | Diff hygiene | `git diff --check` | PASS | No whitespace errors. |

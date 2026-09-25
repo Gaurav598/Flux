@@ -2,9 +2,9 @@
 
 ## Baseline and reconciliation
 
-This continuation uses commit `7ab4398` (`codex/release-stabilization-2026-09-23`) as its authoritative baseline. `main` and the original `codex/complete-engineering-upgrade` branch both remain at `888474f`.
+This continuation began from stabilization commit `7ab4398`. During the work, the user advanced the authoritative stabilization branch to `codex/release-stabilization` at merge commit `2ea5370`, combining `7ab4398` with the newer mainline UI fixes at `5957941`. The integration branch independently merged the same mainline commit at `e4ebb3b`; a direct tree comparison confirms that its remaining differences from `2ea5370` are the intentional engineering-upgrade files. Local `main` and the restored original `codex/complete-engineering-upgrade` reference remain untouched at `888474f`.
 
-The original upgrade branch contains no commit or working-tree diff beyond `888474f`; no matching stash or reflog commit was available. The stabilization commit does contain the reported upgrade artifacts, including the exception handler, conflict/not-found exceptions, booking state machine, booking/rider locks, OTP fields, safe serialization, and regression tests. The integration therefore selectively extends stabilization and does not merge or copy files from the old branch.
+The original upgrade branch contains no commit or working-tree diff beyond `888474f`; no matching stash or reflog commit was available. The stabilization history does contain the reported upgrade artifacts, including the exception handler, conflict/not-found exceptions, booking state machine, booking/rider locks, OTP fields, safe serialization, and regression tests. The integration therefore selectively extends stabilization and does not merge or copy files from the old branch.
 
 ### Reconciliation classification
 
@@ -34,6 +34,7 @@ The original upgrade branch contains no commit or working-tree diff beyond `8884
 - Broker and clients use heartbeats. Mobile clients use bounded exponential reconnect with jitter and perform an authoritative REST reconciliation after every connection.
 - Customer and rider history have paginated endpoints. Lifecycle timelines are derived only from persisted booking timestamps. Cancellation reasons are shown in history.
 - Rider location events are throttled/validated by the existing backend and delivered only on the assigned booking topic. REST location reconciliation is participant-scoped and includes age/freshness.
+- Customer routing refreshes are bounded to avoid per-GPS-update provider calls; ETA is displayed only when routing succeeded and the rider location is fresh.
 - Admin analytics now expose failed bookings, user/rider cancellations, available riders, and stale available-rider locations.
 - Free/demo subscriptions are idempotent. Confirmation can no longer create a subscription from a client token alone, and disabled Stripe webhooks fail explicitly rather than acknowledging unverified events.
 - Free/demo activation locks the rider row, so concurrent retries serialize before checking for an existing active record.
@@ -53,6 +54,7 @@ The original upgrade branch contains no commit or working-tree diff beyond `8884
 - The PostgreSQL Testcontainers concurrency tests require Docker; they are skipped automatically when Docker is unavailable.
 - OTP rate-limit state is process-local. A multi-instance deployment should move counters/session state to Redis.
 - Refresh tokens are typed but are not yet rotated/revoked through a persistent token family.
+- Tokens issued before `tokenType` was introduced are intentionally rejected; users must sign in again after deployment.
 - The in-memory STOMP broker is not horizontally scalable.
 - Existing npm dependency trees report moderate/high transitive vulnerabilities; resolving them may require React Native dependency upgrades and was not forced during this compatibility-focused change.
 - Production schema management still uses the repository's documented manual migration workflow; Hibernate is `validate` in production.

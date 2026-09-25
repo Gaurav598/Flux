@@ -21,7 +21,7 @@
 
 ## Tracking, OTP, and completion
 
-1. Open tracking on customer and assigned-rider devices. Confirm “Live updates connected” appears when STOMP is available.
+1. Open tracking on customer and assigned-rider devices. Tap “Open Navigation”; confirm the booking changes from accepted to rider-en-route and “Live updates connected” appears when STOMP is available.
 2. Move/update the rider device. Confirm customer position updates and location age remains fresh; stop updates for over 30 seconds and confirm it is no longer represented as current.
 3. Disable/re-enable network. Confirm the client reports reconnecting, reconnects with no duplicate UI transition, and reconciles authoritative state.
 4. Mark rider arrival. Confirm only the customer can fetch/view the short-lived OTP.
@@ -60,4 +60,3 @@
 4. Verify cancellation reasons/failed-booking notes appear in booking management.
 
 Record device OS/version, backend commit, timestamps, and screenshots/logs for every failure. Do not use live payment credentials.
-

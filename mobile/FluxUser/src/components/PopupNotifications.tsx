@@ -69,10 +69,6 @@ const NotificationItem: React.FC<{
     }
   };
 
-  const getBgColor = () => {
-    return colors.surfaceAlt;
-  };
-
   const getBorderColor = () => {
     switch (type) {
       case 'success':

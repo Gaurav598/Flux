@@ -127,7 +127,7 @@ const RideTrackingScreen = () => {
         (navigation as any).replace('Home');
         return;
       }
-      
+
       const nextStatus = String(status || 'ACCEPTED') as
         | 'ACCEPTED'
         | 'RIDER_EN_ROUTE'
@@ -294,7 +294,7 @@ const RideTrackingScreen = () => {
     });
   }, [currentLocation, destination, canRenderDirections]);
 
-  const handleOpenNavigation = () => {
+  const handleOpenNavigation = async () => {
     const dest =
       rideStatus === 'IN_PROGRESS'
         ? {
@@ -309,6 +309,24 @@ const RideTrackingScreen = () => {
           };
     if (!dest.lat || !dest.lng) {
       return;
+    }
+    if (rideStatus === 'ACCEPTED') {
+      try {
+        setLoading(true);
+        const response = await api.post(
+          `/bookings/${resolvedBookingId}/en-route`,
+        );
+        setBooking(response.data);
+        setRideStatus('RIDER_EN_ROUTE');
+      } catch (error) {
+        Alert.alert(
+          'Unable to start navigation',
+          'We could not update the ride. Check your connection and try again.',
+        );
+        return;
+      } finally {
+        setLoading(false);
+      }
     }
     const url =
       Platform.OS === 'ios'
@@ -589,7 +607,10 @@ const RideTrackingScreen = () => {
         </View>
 
         {/* 3D Navigation Button */}
-        <TouchableOpacity style={styles.navBtn} onPress={handleOpenNavigation}>
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={handleOpenNavigation}
+          disabled={loading}>
           <Navigation size={18} color={colors.onAccent} />
           <Text style={styles.navBtnText}>Open Navigation</Text>
         </TouchableOpacity>

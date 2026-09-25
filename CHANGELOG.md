@@ -91,4 +91,5 @@ Built on the completed release-stabilization commit `7ab4398`; the items below a
 
 - Removed deterministic fixed-OTP generation for newly created users.
 - Refresh tokens are rejected by HTTP/STOMP resource authentication, and access tokens are rejected by refresh.
+- Pre-upgrade untyped JWTs require users to authenticate again after deployment.
 - Rider location REST access is booking-participant scoped; the legacy rider-ID endpoint is admin-only.

@@ -25,6 +25,7 @@ All `/api/**` endpoints except documented authentication/public routes require `
 | POST | `/api/bids?bookingId=&bidAmount=` | Eligible rider bid |
 | GET | `/api/bids/booking/{bookingId}` | Booking owner/admin bid list |
 | POST | `/api/bids/{bidId}/accept` | Booking owner selects bid |
+| POST | `/api/bookings/{id}/en-route` | Assigned rider starts pickup navigation; persists timeline transition |
 | POST | `/api/bookings/{id}/rider-reached` | Assigned rider; issues owner-visible OTP |
 | GET | `/api/bookings/{id}/verification-otp` | Booking owner only |
 | POST | `/api/bookings/{id}/verify-otp?otp=` | Assigned rider starts trip |
@@ -61,4 +62,3 @@ Mobile reconnection starts near one second with jitter, backs off exponentially 
 ## Scaling note
 
 The current simple broker is process-local. Multiple backend instances require a STOMP broker relay or another verified shared fanout mechanism plus sticky/compatible WebSocket routing. Redis/Kafka presence in Compose does not itself make STOMP delivery multi-instance.
-

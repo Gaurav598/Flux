@@ -101,6 +101,12 @@ public class BookingController {
         return bookingService.updateBookingStatusAsActor(id, status, actorRole(request));
     }
 
+    @PostMapping("/{id}/en-route")
+    @PreAuthorize("hasRole('RIDER')")
+    public Booking markRiderEnRoute(@PathVariable Long id, HttpServletRequest request) {
+        return bookingService.markRiderEnRoute(id, actorId(request));
+    }
+
     @PostMapping("/{id}/cancel")
     public Booking cancelBooking(@PathVariable Long id, @RequestParam String reason,
                                  @RequestParam(required = false) Boolean byUser,

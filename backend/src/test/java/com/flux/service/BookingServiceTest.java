@@ -89,6 +89,20 @@ class BookingServiceTest {
     }
 
     @Test
+    void assignedRiderCanPersistEnRouteTransition() {
+        Rider rider = rider(7L, user(2L));
+        Booking booking = booking(100L, user(1L), BookingStatus.ACCEPTED, rider, 500.0);
+        when(bookingRepository.findByIdWithLock(100L)).thenReturn(Optional.of(booking));
+        when(riderService.getRiderByUserId(2L)).thenReturn(rider);
+
+        Booking updated = service.markRiderEnRoute(100L, 2L);
+
+        assertEquals(BookingStatus.RIDER_EN_ROUTE, updated.getStatus());
+        assertTrue(updated.getRiderEnRouteAt() != null);
+        verify(realtimeEventService).publishBookingAfterCommit(updated);
+    }
+
+    @Test
     void rejectsUnauthorizedRating() {
         Booking booking = booking(100L, user(1L), BookingStatus.COMPLETED, rider(7L, user(2L)), 500.0);
         when(bookingRepository.findByIdWithLock(100L)).thenReturn(Optional.of(booking));

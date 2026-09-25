@@ -69,11 +69,14 @@ const ActiveBookingScreen = () => {
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [locationRecordedAt, setLocationRecordedAt] = useState<string | null>(null);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
+  const [estimatedArrivalMinutes, setEstimatedArrivalMinutes] = useState<number | null>(null);
   const animatedLatitude = useRef(new Animated.Value(0)).current;
   const animatedLongitude = useRef(new Animated.Value(0)).current;
   const cancelledHandled = useRef(false);
   const completedHandled = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRouteRequestAt = useRef(0);
+  const lastRouteStatus = useRef<string | null>(null);
 
   const asCoordinate = (value: unknown, fallback: number) => {
     const num = Number(value);
@@ -298,6 +301,13 @@ const ActiveBookingScreen = () => {
 
   useEffect(() => {
     if (booking && booking.rider) {
+      const now = Date.now();
+      const statusChanged = lastRouteStatus.current !== booking.status;
+      if (!statusChanged && now - lastRouteRequestAt.current < 15000) {
+        return;
+      }
+      lastRouteRequestAt.current = now;
+      lastRouteStatus.current = booking.status;
       const riderLocation = {
         latitude: booking.rider.currentLatitude || booking.pickupLatitude,
         longitude: booking.rider.currentLongitude || booking.pickupLongitude,
@@ -316,6 +326,9 @@ const ActiveBookingScreen = () => {
       getDrivingRoute(riderLocation, destination).then(res => {
         if (res && res.coordinates) {
           setRouteCoords(res.coordinates);
+          setEstimatedArrivalMinutes(Math.max(1, Math.round(res.durationMin)));
+        } else {
+          setEstimatedArrivalMinutes(null);
         }
       });
     }
@@ -432,6 +445,13 @@ const ActiveBookingScreen = () => {
   const vehicleId = normalizeVehicleId(
     booking.rider?.vehicleType || (booking as any).serviceType,
   );
+  const locationAgeSeconds = locationRecordedAt
+    ? Math.max(
+        0,
+        Math.floor((Date.now() - new Date(locationRecordedAt).getTime()) / 1000),
+      )
+    : null;
+  const locationIsFresh = locationAgeSeconds !== null && locationAgeSeconds <= 30;
 
   return (
     <View style={styles.container}>
@@ -498,8 +518,11 @@ const ActiveBookingScreen = () => {
         </View>
         <Text style={styles.connectionText}>
           {realtimeConnected ? 'Live updates connected' : 'Reconnecting · periodic sync active'}
-          {locationRecordedAt
-            ? ` · location ${Math.max(0, Math.floor((Date.now() - new Date(locationRecordedAt).getTime()) / 1000))}s ago`
+          {locationAgeSeconds !== null
+            ? ` · location ${locationIsFresh ? `${locationAgeSeconds}s ago` : `stale (${locationAgeSeconds}s)`}`
+            : ''}
+          {locationIsFresh && estimatedArrivalMinutes !== null
+            ? ` · ETA ${estimatedArrivalMinutes} min`
             : ''}
         </Text>
 

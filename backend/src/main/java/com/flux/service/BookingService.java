@@ -1,6 +1,7 @@
 package com.flux.service;
 
 import com.flux.dto.BookingRequest;
+import com.flux.exception.ResourceNotFoundException;
 import com.flux.model.entity.Booking;
 import com.flux.model.entity.Bid;
 import com.flux.model.entity.Rider;
@@ -372,6 +373,32 @@ public class BookingService {
             throw new AccessDeniedException("Only administrators can perform manual status updates");
         }
         return updateBookingStatus(bookingId, status);
+    }
+
+    @Transactional
+    public Booking markRiderEnRoute(Long bookingId, Long riderUserId) {
+        Booking booking = bookingRepository.findByIdWithLock(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        Rider rider = riderService.getRiderByUserId(riderUserId);
+        if (booking.getRider() == null || !booking.getRider().getId().equals(rider.getId())) {
+            throw new AccessDeniedException("Only the assigned rider can start navigation");
+        }
+        if (booking.getStatus() == BookingStatus.RIDER_EN_ROUTE) {
+            return booking;
+        }
+        BookingStateMachine.requireTransition(booking.getStatus(), BookingStatus.RIDER_EN_ROUTE);
+        booking.setStatus(BookingStatus.RIDER_EN_ROUTE);
+        booking.setRiderEnRouteAt(LocalDateTime.now());
+        Booking saved = bookingRepository.save(booking);
+        realtimeEventService.publishBookingAfterCommit(saved);
+        notificationService.notifyUserWithType(
+                booking.getUser().getId(),
+                "Rider En Route",
+                "Your rider has started navigation to the pickup location",
+                "RIDER_EN_ROUTE",
+                booking.getId()
+        );
+        return saved;
     }
 
     @Transactional
