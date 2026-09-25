@@ -15,7 +15,8 @@ import {
   Image,
   StatusBar,
 } from 'react-native';
-import MapView, {Circle, Marker, PROVIDER_DEFAULT, UrlTile} from 'react-native-maps';
+import MapView, {Circle, Marker} from 'react-native-maps';
+import ReliableMapView from '../components/ReliableMapView';
 import {useSelector, useDispatch} from 'react-redux';
 import {RootState, AppDispatch} from '../store';
 import {
@@ -272,21 +273,13 @@ const HomeScreen = ({navigation}: any) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.mapContainer}>
-        <MapView
+        <ReliableMapView
           ref={mapRef}
-          provider={PROVIDER_DEFAULT}
           style={StyleSheet.absoluteFill}
           region={location}
           showsUserLocation={false}
           showsMyLocationButton={false}
           showsCompass={false}>
-          {/* CartoDB Dark Matter tiles — no API key required */}
-          <UrlTile
-            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-            maximumZ={19}
-            flipY={false}
-            zIndex={-1}
-          />
           <Circle
             center={location}
             radius={40}
@@ -303,7 +296,7 @@ const HomeScreen = ({navigation}: any) => {
               <View style={styles.blueDotInner} />
             </View>
           </Marker>
-        </MapView>
+        </ReliableMapView>
 
         <View style={[styles.headerOverlay, {top: insets.top + 8}]}>
           <View style={styles.headerLeft}>

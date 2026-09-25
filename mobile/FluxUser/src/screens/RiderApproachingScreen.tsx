@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {Polyline} from 'react-native-maps';
+import ReliableMapView from '../components/ReliableMapView';
 import {
   Phone,
   MessageCircle,
@@ -25,6 +26,8 @@ import {
   ApproachingVehicleMarker,
   UserLocationMarker,
 } from '../components/MapMarkers';
+import {subscribeToBookingRealtime} from '../services/realtimeService';
+import {DEFAULT_MAP_COORDINATE, toMapCoordinate} from '../utils/mapCoordinates';
 
 const RiderApproachingScreen = ({route, navigation}: any) => {
   const {height: windowHeight} = useWindowDimensions();
@@ -37,6 +40,32 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [locationRecordedAt, setLocationRecordedAt] = useState<string | null>(null);
+  const latestLocationAt = useRef(0);
+  const fitted = useRef(false);
+  const lastRouteRequestAt = useRef(0);
+
+  const applyRiderLocation = useCallback((payload: any) => {
+    const coordinate = toMapCoordinate(payload?.latitude, payload?.longitude);
+    const recordedAt = String(payload?.recordedAt || '');
+    const timestamp = Date.parse(recordedAt);
+    if (!coordinate || !Number.isFinite(timestamp) || timestamp <= latestLocationAt.current) {
+      return;
+    }
+    latestLocationAt.current = timestamp;
+    setRiderLocation(coordinate);
+    setLocationRecordedAt(recordedAt);
+  }, []);
+
+  const reconcileRiderLocation = useCallback(async () => {
+    try {
+      const response = await api.get(`/bookings/${bookingId}/rider-location`);
+      applyRiderLocation(response.data);
+    } catch {
+      // Booking polling remains the fallback while location is unavailable.
+    }
+  }, [applyRiderLocation, bookingId]);
 
   const fetchBookingDetails = useCallback(async () => {
     try {
@@ -60,26 +89,49 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
         navigation.replace('RatingScreen', {bookingId});
       }
 
-      if (
-        bookingData.rider?.currentLatitude &&
-        bookingData.rider?.currentLongitude
-      ) {
-        setRiderLocation({
-          latitude: bookingData.rider.currentLatitude,
-          longitude: bookingData.rider.currentLongitude,
+      const embeddedLocation = toMapCoordinate(
+        bookingData.rider?.currentLatitude,
+        bookingData.rider?.currentLongitude,
+      );
+      if (embeddedLocation && bookingData.rider?.lastLocationUpdate) {
+        applyRiderLocation({
+          ...embeddedLocation,
+          recordedAt: bookingData.rider.lastLocationUpdate,
         });
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load booking details');
       setLoading(false);
     }
-  }, [bookingId, navigation]);
+  }, [applyRiderLocation, bookingId, navigation]);
 
   useEffect(() => {
     fetchBookingDetails();
-    const interval = setInterval(fetchBookingDetails, 7000);
+    const interval = setInterval(fetchBookingDetails, 30_000);
     return () => clearInterval(interval);
   }, [fetchBookingDetails]);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let disposed = false;
+    void subscribeToBookingRealtime(Number(bookingId), {
+      onConnected: () => {
+        void fetchBookingDetails();
+        void reconcileRiderLocation();
+      },
+      onStatus: () => void fetchBookingDetails(),
+      onLocation: applyRiderLocation,
+      onConnectionChange: setRealtimeConnected,
+    }).then(cleanup => {
+      if (disposed) cleanup();
+      else unsubscribe = cleanup;
+    });
+    void reconcileRiderLocation();
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [applyRiderLocation, bookingId, fetchBookingDetails, reconcileRiderLocation]);
 
   useEffect(() => {
     if (!booking || !mapRef.current) {
@@ -90,14 +142,13 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
     if (riderLocation) {
       coordinates.push(riderLocation);
     }
-    if (booking.pickupLatitude && booking.pickupLongitude) {
-      coordinates.push({
-        latitude: booking.pickupLatitude,
-        longitude: booking.pickupLongitude,
-      });
-    }
+    const pickup = toMapCoordinate(
+      booking.pickupLatitude,
+      booking.pickupLongitude,
+    );
+    if (pickup) coordinates.push(pickup);
 
-    if (coordinates.length === 2) {
+    if (coordinates.length === 2 && !fitted.current) {
       mapRef.current.fitToCoordinates(coordinates, {
         edgePadding: {
           top: 120,
@@ -107,28 +158,24 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
         },
         animated: true,
       });
+      fitted.current = true;
     }
 
-    if (riderLocation && booking.pickupLatitude && booking.pickupLongitude) {
+    if (riderLocation && pickup && Date.now() - lastRouteRequestAt.current >= 15_000) {
+      lastRouteRequestAt.current = Date.now();
       getDrivingRoute(
         riderLocation,
-        {
-          latitude: booking.pickupLatitude,
-          longitude: booking.pickupLongitude,
-        },
+        pickup,
       ).then(res => {
-        if (res) {
-          if (res.coordinates) {
-            setRouteCoords(res.coordinates);
-          }
-          if (res.durationMin) {
-            const minutes = Math.ceil(res.durationMin);
-            setEta(`${minutes} min${minutes !== 1 ? 's' : ''}`);
-          }
-        }
+        setRouteCoords(res?.coordinates || []);
+        const fresh = locationRecordedAt
+          ? Date.now() - Date.parse(locationRecordedAt) <= 30_000
+          : false;
+        const minutes = fresh && res ? Math.ceil(res.durationMin) : null;
+        setEta(minutes ? `${minutes} min${minutes !== 1 ? 's' : ''}` : 'unavailable');
       });
     }
-  }, [booking, riderLocation, windowHeight]);
+  }, [booking, locationRecordedAt, riderLocation, windowHeight]);
 
   const handleCall = () => {
     const phoneNumber =
@@ -214,25 +261,21 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
     booking.rider?.vehicleNumber ||
     'N/A';
   const totalRides = booking.rider?.totalRides || 0;
+  const pickupCoordinate =
+    toMapCoordinate(booking.pickupLatitude, booking.pickupLongitude) ||
+    DEFAULT_MAP_COORDINATE;
 
   return (
     <View style={styles.container}>
-      <MapView
+      <ReliableMapView
         ref={mapRef}
-        provider={PROVIDER_DEFAULT}
         style={styles.map}
         initialRegion={{
-          latitude: booking.pickupLatitude,
-          longitude: booking.pickupLongitude,
+          latitude: pickupCoordinate.latitude,
+          longitude: pickupCoordinate.longitude,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}>
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-          maximumZ={19}
-          flipY={false}
-          zIndex={-1}
-        />
         {riderLocation && (
           <ApproachingVehicleMarker
             coordinate={riderLocation}
@@ -246,8 +289,7 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
 
         <UserLocationMarker
           coordinate={{
-            latitude: booking.pickupLatitude,
-            longitude: booking.pickupLongitude,
+            ...pickupCoordinate,
           }}
         />
 
@@ -258,13 +300,15 @@ const RiderApproachingScreen = ({route, navigation}: any) => {
             strokeColor={colors.accent}
           />
         )}
-      </MapView>
+      </ReliableMapView>
 
       <SafeAreaView style={styles.topBadgeWrap} pointerEvents="box-none">
         <View style={styles.topBadge}>
           <Clock size={14} color={colors.text} />
           <Text style={styles.topBadgeText}>
-            {isRiderArrived ? 'Rider arrived' : `Arriving in ${eta}`}
+            {isRiderArrived
+              ? 'Rider arrived'
+              : `${realtimeConnected ? '' : 'Reconnecting · '}ETA ${eta}`}
           </Text>
         </View>
       </SafeAreaView>

@@ -11,7 +11,8 @@ import {
   Animated,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {Marker, Polyline} from 'react-native-maps';
+import ReliableMapView from '../components/ReliableMapView';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import api from '../config/api';
 import {getDrivingRoute} from '../services/directionsService';
@@ -28,6 +29,7 @@ import {colors, normalizeVehicleId} from '../theme';
 import {ApproachingVehicleMarker, UserLocationMarker} from '../components/MapMarkers';
 import CardGradient from '../components/CardGradient';
 import {subscribeToBookingRealtime} from '../services/realtimeService';
+import {DEFAULT_MAP_COORDINATE, toMapCoordinate} from '../utils/mapCoordinates';
 
 interface Booking {
   id: number;
@@ -77,11 +79,7 @@ const ActiveBookingScreen = () => {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRouteRequestAt = useRef(0);
   const lastRouteStatus = useRef<string | null>(null);
-
-  const asCoordinate = (value: unknown, fallback: number) => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : fallback;
-  };
+  const lastFittedStatus = useRef<string | null>(null);
 
   const fetchBookingDetails = useCallback(async () => {
     if (!Number.isFinite(bookingId) || bookingId <= 0) {
@@ -93,41 +91,51 @@ const ActiveBookingScreen = () => {
       const response = await api.get(`/bookings/${bookingId}`);
       const payload = response.data || {};
       const currentBooking = bookingRef.current;
-      const fallbackPickupLat = currentBooking?.pickupLatitude || 28.6139;
-      const fallbackPickupLng = currentBooking?.pickupLongitude || 77.209;
-      const fallbackDropLat = currentBooking?.dropLatitude || fallbackPickupLat;
-      const fallbackDropLng = currentBooking?.dropLongitude || fallbackPickupLng;
+      const previousPickup =
+        toMapCoordinate(
+          currentBooking?.pickupLatitude,
+          currentBooking?.pickupLongitude,
+        ) || DEFAULT_MAP_COORDINATE;
+      const pickup =
+        toMapCoordinate(payload.pickupLatitude, payload.pickupLongitude) ||
+        previousPickup;
+      const drop =
+        toMapCoordinate(payload.dropLatitude, payload.dropLongitude) ||
+        toMapCoordinate(
+          currentBooking?.dropLatitude,
+          currentBooking?.dropLongitude,
+        ) ||
+        pickup;
+      const riderCoordinate =
+        toMapCoordinate(
+          payload.rider?.currentLatitude,
+          payload.rider?.currentLongitude,
+        ) || pickup;
 
       const newBooking = {
         ...payload,
-        pickupLatitude: asCoordinate(payload.pickupLatitude, fallbackPickupLat),
-        pickupLongitude: asCoordinate(payload.pickupLongitude, fallbackPickupLng),
-        dropLatitude: asCoordinate(payload.dropLatitude, fallbackDropLat),
-        dropLongitude: asCoordinate(payload.dropLongitude, fallbackDropLng),
+        pickupLatitude: pickup.latitude,
+        pickupLongitude: pickup.longitude,
+        dropLatitude: drop.latitude,
+        dropLongitude: drop.longitude,
         rider: payload.rider
           ? {
               ...payload.rider,
-              currentLatitude: asCoordinate(
-                payload.rider.currentLatitude,
-                asCoordinate(payload.pickupLatitude, fallbackPickupLat),
-              ),
-              currentLongitude: asCoordinate(
-                payload.rider.currentLongitude,
-                asCoordinate(payload.pickupLongitude, fallbackPickupLng),
-              ),
+              currentLatitude: riderCoordinate.latitude,
+              currentLongitude: riderCoordinate.longitude,
             }
           : null,
       };
 
       if (currentBooking && newBooking.rider) {
         const newLat =
-          newBooking.rider.currentLatitude || newBooking.pickupLatitude;
+          newBooking.rider.currentLatitude ?? newBooking.pickupLatitude;
         const newLng =
-          newBooking.rider.currentLongitude || newBooking.pickupLongitude;
+          newBooking.rider.currentLongitude ?? newBooking.pickupLongitude;
         const oldLat =
-          currentBooking.rider?.currentLatitude || currentBooking.pickupLatitude;
+          currentBooking.rider?.currentLatitude ?? currentBooking.pickupLatitude;
         const oldLng =
-          currentBooking.rider?.currentLongitude || currentBooking.pickupLongitude;
+          currentBooking.rider?.currentLongitude ?? currentBooking.pickupLongitude;
 
         if (
           Math.abs(newLat - oldLat) > 0.0001 ||
@@ -148,10 +156,10 @@ const ActiveBookingScreen = () => {
         }
       } else if (newBooking.rider) {
         animatedLatitude.setValue(
-          newBooking.rider.currentLatitude || newBooking.pickupLatitude,
+          newBooking.rider.currentLatitude ?? newBooking.pickupLatitude,
         );
         animatedLongitude.setValue(
-          newBooking.rider.currentLongitude || newBooking.pickupLongitude,
+          newBooking.rider.currentLongitude ?? newBooking.pickupLongitude,
         );
       }
 
@@ -240,6 +248,8 @@ const ActiveBookingScreen = () => {
       onConnectionChange: connected => mounted && setRealtimeConnected(connected),
       onLocation: event => {
         if (!mounted) return;
+        const coordinate = toMapCoordinate(event.latitude, event.longitude);
+        if (!coordinate) return;
         setLocationRecordedAt(event.recordedAt || null);
         setBooking(current => {
           const updated = current?.rider
@@ -247,8 +257,8 @@ const ActiveBookingScreen = () => {
                 ...current,
                 rider: {
                   ...current.rider,
-                  currentLatitude: Number(event.latitude),
-                  currentLongitude: Number(event.longitude),
+                  currentLatitude: coordinate.latitude,
+                  currentLongitude: coordinate.longitude,
                 },
               }
             : current;
@@ -276,15 +286,25 @@ const ActiveBookingScreen = () => {
   }, [booking?.status, fetchUserOtp]);
 
   useEffect(() => {
-    if (booking && booking.rider && mapRef.current) {
-      const riderLocation = {
-        latitude: booking.rider.currentLatitude || booking.pickupLatitude,
-        longitude: booking.rider.currentLongitude || booking.pickupLongitude,
-      };
+    if (
+      booking &&
+      booking.rider &&
+      mapRef.current &&
+      lastFittedStatus.current !== booking.status
+    ) {
+      const riderLocation =
+        toMapCoordinate(
+          booking.rider.currentLatitude,
+          booking.rider.currentLongitude,
+        ) || {latitude: booking.pickupLatitude, longitude: booking.pickupLongitude};
+      const target =
+        booking.status === 'IN_PROGRESS'
+          ? {latitude: booking.dropLatitude, longitude: booking.dropLongitude}
+          : {latitude: booking.pickupLatitude, longitude: booking.pickupLongitude};
 
       const coordinates = [
         riderLocation,
-        {latitude: booking.pickupLatitude, longitude: booking.pickupLongitude},
+        target,
       ];
 
       mapRef.current.fitToCoordinates(coordinates, {
@@ -296,6 +316,7 @@ const ActiveBookingScreen = () => {
         },
         animated: true,
       });
+      lastFittedStatus.current = booking.status;
     }
   }, [booking, windowHeight]);
 
@@ -308,10 +329,11 @@ const ActiveBookingScreen = () => {
       }
       lastRouteRequestAt.current = now;
       lastRouteStatus.current = booking.status;
-      const riderLocation = {
-        latitude: booking.rider.currentLatitude || booking.pickupLatitude,
-        longitude: booking.rider.currentLongitude || booking.pickupLongitude,
-      };
+      const riderLocation =
+        toMapCoordinate(
+          booking.rider.currentLatitude,
+          booking.rider.currentLongitude,
+        ) || {latitude: booking.pickupLatitude, longitude: booking.pickupLongitude};
       const destination =
         booking.status === 'IN_PROGRESS'
           ? {
@@ -326,7 +348,12 @@ const ActiveBookingScreen = () => {
       getDrivingRoute(riderLocation, destination).then(res => {
         if (res && res.coordinates) {
           setRouteCoords(res.coordinates);
-          setEstimatedArrivalMinutes(Math.max(1, Math.round(res.durationMin)));
+          const age = locationRecordedAt
+            ? Date.now() - Date.parse(locationRecordedAt)
+            : Number.POSITIVE_INFINITY;
+          setEstimatedArrivalMinutes(
+            age <= 30_000 ? Math.max(1, Math.round(res.durationMin)) : null,
+          );
         } else {
           setEstimatedArrivalMinutes(null);
         }
@@ -341,6 +368,7 @@ const ActiveBookingScreen = () => {
     booking?.dropLatitude,
     booking?.dropLongitude,
     booking,
+    locationRecordedAt,
   ]);
 
   const handleCallRider = () => {
@@ -438,10 +466,11 @@ const ActiveBookingScreen = () => {
   }
 
   const statusInfo = getStatusInfo();
-  const riderLocation = {
-    latitude: booking.rider.currentLatitude || booking.pickupLatitude,
-    longitude: booking.rider.currentLongitude || booking.pickupLongitude,
-  };
+  const riderLocation =
+    toMapCoordinate(
+      booking.rider.currentLatitude,
+      booking.rider.currentLongitude,
+    ) || {latitude: booking.pickupLatitude, longitude: booking.pickupLongitude};
   const vehicleId = normalizeVehicleId(
     booking.rider?.vehicleType || (booking as any).serviceType,
   );
@@ -455,9 +484,8 @@ const ActiveBookingScreen = () => {
 
   return (
     <View style={styles.container}>
-      <MapView
+      <ReliableMapView
         ref={mapRef}
-        provider={PROVIDER_DEFAULT}
         style={styles.map}
         initialRegion={{
           latitude: booking.pickupLatitude,
@@ -465,12 +493,6 @@ const ActiveBookingScreen = () => {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}>
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-          maximumZ={19}
-          flipY={false}
-          zIndex={-1}
-        />
         <ApproachingVehicleMarker
           coordinate={riderLocation}
           vehicleId={vehicleId}
@@ -504,7 +526,7 @@ const ActiveBookingScreen = () => {
             strokeColor={colors.accent}
           />
         )}
-      </MapView>
+      </ReliableMapView>
 
       <ScrollView
         style={[styles.bottomSheet, {maxHeight: windowHeight * 0.62}]}

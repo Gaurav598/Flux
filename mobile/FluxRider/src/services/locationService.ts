@@ -1,13 +1,20 @@
 import Geolocation from 'react-native-geolocation-service';
 import {Alert, Linking, PermissionsAndroid, Platform} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  isPlausibleLocationUpdate,
+  toMapCoordinate,
+  type MapCoordinate,
+} from '../utils/mapCoordinates';
 
 export interface Location {
   latitude: number;
   longitude: number;
+  timestamp?: number;
 }
 
 const LAST_LOCATION_KEY = 'flux_rider_last_known_location';
+const MAX_CACHED_LOCATION_AGE_MS = 30 * 60 * 1000;
 
 const cacheLocation = async (location: Location) => {
   try {
@@ -29,15 +36,18 @@ const getCachedLocation = async (): Promise<Location | null> => {
     if (!value) {
       return null;
     }
-    const parsed = JSON.parse(value) as Location;
+    const parsed = JSON.parse(value) as Location & {timestamp?: number};
     if (
       !parsed ||
       typeof parsed.latitude !== 'number' ||
-      typeof parsed.longitude !== 'number'
+      typeof parsed.longitude !== 'number' ||
+      !Number.isFinite(parsed.timestamp) ||
+      Date.now() - Number(parsed.timestamp) > MAX_CACHED_LOCATION_AGE_MS
     ) {
       return null;
     }
-    return parsed;
+    const coordinate = toMapCoordinate(parsed.latitude, parsed.longitude);
+    return coordinate ? {...coordinate, timestamp: Number(parsed.timestamp)} : null;
   } catch {
     return null;
   }
@@ -51,10 +61,11 @@ const getPositionOnce = (options: {
   new Promise((resolve, reject) => {
     Geolocation.getCurrentPosition(
       position => {
-        resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
+        const coordinate = toMapCoordinate(
+          position.coords.latitude,
+          position.coords.longitude,
+        );
+        coordinate ? resolve(coordinate) : reject(new Error('Location provider returned invalid coordinates'));
       },
       error => reject(error),
       {
@@ -86,6 +97,16 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
 export const requestLocationPermission = async (): Promise<boolean> => {
   if (Platform.OS === 'ios') {
     const auth = await Geolocation.requestAuthorization('whenInUse');
+    if (auth === 'denied' || auth === 'restricted') {
+      Alert.alert(
+        'Enable Location Access',
+        'Flux Rider needs location access while the app is open to find and complete rides.',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {text: 'Open Settings', onPress: () => Linking.openSettings()},
+        ],
+      );
+    }
     return auth === 'granted';
   }
 
@@ -169,12 +190,23 @@ export const watchLocation = (
   onLocationChange: (location: Location) => void,
   onError?: (error: any) => void,
 ): number =>
-  Geolocation.watchPosition(
+  (() => {
+    let previous: {coordinate: MapCoordinate; timestamp: number} | null = null;
+    return Geolocation.watchPosition(
     position => {
-      const location = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
+      const location = toMapCoordinate(
+        position.coords.latitude,
+        position.coords.longitude,
+      );
+      if (!location) {
+        onError?.(new Error('Location provider returned invalid coordinates'));
+        return;
+      }
+      const timestamp = Number(position.timestamp) || Date.now();
+      if (!isPlausibleLocationUpdate(previous, location, timestamp)) {
+        return;
+      }
+      previous = {coordinate: location, timestamp};
       void cacheLocation(location);
       onLocationChange(location);
     },
@@ -191,7 +223,8 @@ export const watchLocation = (
       showLocationDialog: true,
       forceRequestLocation: true,
     },
-  );
+    );
+  })();
 
 export const clearLocationWatch = (watchId: number): void => {
   Geolocation.clearWatch(watchId);

@@ -17,10 +17,9 @@ import {
 import MapView, {
   Marker,
   Circle,
-  PROVIDER_DEFAULT,
-  UrlTile,
   Region,
 } from 'react-native-maps';
+import ReliableMapView from '../../../components/ReliableMapView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
@@ -40,6 +39,7 @@ import {
   watchLocation,
   clearLocationWatch,
 } from '../../../services/locationService';
+import {toMapCoordinate} from '../../../utils/mapCoordinates';
 import {
   searchPlaces,
   getNearbyPlaces,
@@ -236,8 +236,10 @@ const HomeScreen = ({navigation}: any) => {
       setNearbyRiders(
         riders.filter(
           rider =>
-            Number.isFinite(Number(rider.currentLatitude)) &&
-            Number.isFinite(Number(rider.currentLongitude)) &&
+            !!toMapCoordinate(
+              rider.currentLatitude,
+              rider.currentLongitude,
+            ) &&
             (selectedVehicleId === 'parcel' ||
               normalizeVehicleId(rider.vehicleType) === selectedVehicleId),
         ),
@@ -312,9 +314,11 @@ const HomeScreen = ({navigation}: any) => {
   ).current;
 
   const animateToCoords = (coords: {latitude: number; longitude: number}) => {
+    const validCoordinate = toMapCoordinate(coords.latitude, coords.longitude);
+    if (!validCoordinate) return;
     mapRef.current?.animateToRegion(
       {
-        ...coords,
+        ...validCoordinate,
         latitudeDelta: 0.015,
         longitudeDelta: 0.015,
       },
@@ -479,9 +483,8 @@ const HomeScreen = ({navigation}: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.mapContainer}>
-        <MapView
+        <ReliableMapView
           ref={mapRef}
-          provider={PROVIDER_DEFAULT}
           style={StyleSheet.absoluteFill}
           initialRegion={{
             latitude: currentCoords?.latitude ?? 28.6139,
@@ -493,25 +496,20 @@ const HomeScreen = ({navigation}: any) => {
           showsMyLocationButton={false}
           showsCompass={false}
           onRegionChangeComplete={handleMapRegionChangeComplete}>
-          {/* CartoDB Dark Matter tiles — no API key required */}
-          <UrlTile
-            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-            maximumZ={19}
-            flipY={false}
-            zIndex={-1}
-          />
           {/* User location - Google Maps style blue dot with direction cone */}
           {nearbyRiders.map((rider, index) => {
+            const coordinate = toMapCoordinate(
+              rider.currentLatitude,
+              rider.currentLongitude,
+            );
+            if (!coordinate) return null;
             const mapVehicle = getMapVehicle(
               normalizeVehicleId(rider.vehicleType),
             );
             return (
               <Marker
                 key={`${rider.id || 'nearby'}-${index}`}
-                coordinate={{
-                  latitude: Number(rider.currentLatitude),
-                  longitude: Number(rider.currentLongitude),
-                }}
+                coordinate={coordinate}
                 anchor={{x: 0.5, y: 0.5}}
                 flat
                 tracksViewChanges={false}>
@@ -556,7 +554,7 @@ const HomeScreen = ({navigation}: any) => {
               </Marker>
             </>
           )}
-        </MapView>
+        </ReliableMapView>
 
         {/* Fixed center pin for pickup (Rapido style) - only in pin mode */}
         {pickupMode === 'pin' && (

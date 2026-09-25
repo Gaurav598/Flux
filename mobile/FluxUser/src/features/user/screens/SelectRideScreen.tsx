@@ -4,17 +4,18 @@ import {
   Text,
   Image,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   Dimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
+import {Marker, Polyline} from 'react-native-maps';
+import ReliableMapView from '../../../components/ReliableMapView';
 import {getDrivingRoute} from '../../../services/directionsService';
 import {VEHICLE_TYPES} from '../../../data/mockData';
 import {ArrowLeft, Navigation, Clock} from 'lucide-react-native';
 import {colors, getVehicleImage} from '../../../theme';
 import CardGradient from '../../../components/CardGradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {toMapCoordinate} from '../../../utils/mapCoordinates';
 
 const {height} = Dimensions.get('window');
 
@@ -29,21 +30,29 @@ const PARCEL_VEHICLE = {
 };
 
 const SelectRideScreen = ({navigation, route}: any) => {
-  const {pickup, drop, distanceKm, pickupCoords, dropCoords, vehicle} =
+  const {pickup, drop, distanceKm, pickupCoords: rawPickup, dropCoords: rawDrop, vehicle} =
     route.params;
   const insets = useSafeAreaInsets();
 
   const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
+  const [routeDurationMinutes, setRouteDurationMinutes] = React.useState<number | null>(null);
+  const pickupCoords = useMemo(
+    () => toMapCoordinate(rawPickup?.latitude, rawPickup?.longitude),
+    [rawPickup?.latitude, rawPickup?.longitude],
+  );
+  const dropCoords = useMemo(
+    () => toMapCoordinate(rawDrop?.latitude, rawDrop?.longitude),
+    [rawDrop?.latitude, rawDrop?.longitude],
+  );
 
   React.useEffect(() => {
     if (pickupCoords && dropCoords) {
       getDrivingRoute(pickupCoords, dropCoords).then(res => {
-        if (res && res.coordinates) {
-          setRouteCoords(res.coordinates);
-        }
+        setRouteCoords(res?.coordinates || []);
+        setRouteDurationMinutes(res?.durationMin ?? null);
       });
     }
-  }, [pickupCoords, dropCoords]);
+  }, [dropCoords, pickupCoords]);
 
   const selectedVehicle = useMemo(() => {
     if (vehicle?.id) {
@@ -60,6 +69,7 @@ const SelectRideScreen = ({navigation, route}: any) => {
   const baseFare = getBaseFareForVehicle(selectedVehicle);
 
   const handleConfirmVehicle = () => {
+    if (!pickupCoords || !dropCoords) return;
     navigation.navigate('SetPrice', {
       pickup,
       drop,
@@ -75,8 +85,7 @@ const SelectRideScreen = ({navigation, route}: any) => {
     <View style={styles.container}>
       <View style={styles.mapContainer}>
         {pickupCoords && dropCoords ? (
-          <MapView
-            provider={PROVIDER_DEFAULT}
+          <ReliableMapView
             style={StyleSheet.absoluteFill}
             initialRegion={{
               latitude: (pickupCoords.latitude + dropCoords.latitude) / 2,
@@ -86,12 +95,6 @@ const SelectRideScreen = ({navigation, route}: any) => {
               longitudeDelta:
                 Math.abs(pickupCoords.longitude - dropCoords.longitude) * 1.8,
             }}>
-            <UrlTile
-              urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-              maximumZ={19}
-              flipY={false}
-              zIndex={-1}
-            />
             <Marker coordinate={pickupCoords} title="Pickup">
               <View style={styles.pickupMarker}>
                 <View style={styles.pickupMarkerDot} />
@@ -109,10 +112,12 @@ const SelectRideScreen = ({navigation, route}: any) => {
                 strokeColor={colors.accent}
               />
             )}
-          </MapView>
+          </ReliableMapView>
         ) : (
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={styles.statText}>
+              Pickup or destination coordinates are unavailable.
+            </Text>
           </View>
         )}
       </View>
@@ -151,7 +156,9 @@ const SelectRideScreen = ({navigation, route}: any) => {
               <View style={styles.statDivider} />
               <Clock size={14} color={colors.textSub} />
               <Text style={styles.statText}>
-                ~{Math.round(distanceKm * 1.4)} min
+                {routeDurationMinutes !== null
+                  ? `${Math.ceil(routeDurationMinutes)} min`
+                  : 'Route unavailable'}
               </Text>
             </View>
           </View>
@@ -178,7 +185,11 @@ const SelectRideScreen = ({navigation, route}: any) => {
           <View style={styles.footer}>
             <TouchableOpacity
               activeOpacity={0.9}
-              style={styles.confirmBtn}
+              style={[
+                styles.confirmBtn,
+                (!pickupCoords || !dropCoords) && {opacity: 0.5},
+              ]}
+              disabled={!pickupCoords || !dropCoords}
               onPress={handleConfirmVehicle}>
               <Text style={styles.confirmBtnText}>
                 Continue with {selectedVehicle.label}
@@ -383,4 +394,3 @@ const styles = StyleSheet.create({
 });
 
 export default SelectRideScreen;
-

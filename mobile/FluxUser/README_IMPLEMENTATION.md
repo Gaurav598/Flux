@@ -67,24 +67,18 @@
 
 ## 🔧 Configuration Required
 
-### 1. **Google Places API Key**
-Update `src/services/placesService.ts`:
-```typescript
-const GOOGLE_PLACES_API_KEY = 'YOUR_ACTUAL_API_KEY';
-```
+### 1. **Map and geocoding keys**
 
-**How to get it:**
-1. Go to Google Cloud Console
-2. Enable Places API
-3. Create API credentials
-4. Copy the API key
+Configuration is environment-driven; never hardcode a key in a service file. Android map tiles use `GOOGLE_MAPS_API_KEY`. Place search, reverse geocoding, routes and ETA use `LOCATION_IQ_API_KEY`. iOS uses Apple Maps and does not need a Google map key. See the repository-level `MAP_SETUP_AND_TESTING.md` for package/signing restrictions and device tests.
 
 ### 2. **Environment Variables**
 Create `.env` file (copy from `.env.example`):
 ```
-GOOGLE_PLACES_API_KEY=your_actual_key
-API_BASE_URL=http://16.171.230.164:8080/api
-SOCKET_URL=http://16.171.230.164:8080
+GOOGLE_MAPS_API_KEY=android_maps_sdk_key
+LOCATION_IQ_API_KEY=locationiq_key
+ROUTING_API_BASE_URL=https://us1.locationiq.com/v1
+API_BASE_URL=http://localhost:8080/api
+SOCKET_URL=http://localhost:8080
 ```
 
 ### 3. **Backend API Endpoints Required**
@@ -189,10 +183,10 @@ Add to `android/app/src/main/AndroidManifest.xml`:
 Add to `ios/FluxUser/Info.plist`:
 ```xml
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>We need your location to find nearby riders</string>
-<key>NSLocationAlwaysUsageDescription</key>
-<string>We need your location to track your ride</string>
+<string>Flux uses your location to set pickup points, find nearby rides, and show live trip progress while the app is open.</string>
 ```
+
+Flux does not request background location.
 
 ## 🧪 Testing Checklist
 

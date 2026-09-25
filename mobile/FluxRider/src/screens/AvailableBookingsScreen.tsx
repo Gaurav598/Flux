@@ -11,7 +11,8 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {Marker, Polyline} from 'react-native-maps';
+import ReliableMapView from '../components/ReliableMapView';
 import {
   colors,
   getVehicleImage,
@@ -40,6 +41,7 @@ import {
 } from 'lucide-react-native';
 import {Image} from 'react-native';
 import CardGradient from '../components/CardGradient';
+import {DEFAULT_MAP_COORDINATE, toMapCoordinate} from '../utils/mapCoordinates';
 
 const AvailableBookingsScreen = ({navigation}: any) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -67,23 +69,20 @@ const AvailableBookingsScreen = ({navigation}: any) => {
 
   const currentBooking = availableBookings[currentIndex] ?? null;
 
-  const isValidCoordinate = (value: unknown) => {
-    const num = Number(value);
-    return Number.isFinite(num) && Math.abs(num) <= 180;
-  };
-
   const fetchAvailableBookings = useCallback(
     async (lat?: number, lng?: number) => {
       const requestId = ++requestSequence.current;
-      const latitude = lat || currentLocationRef.current?.latitude || 28.6139;
-      const longitude = lng || currentLocationRef.current?.longitude || 77.209;
+      const searchCenter =
+        toMapCoordinate(lat, lng) ||
+        currentLocationRef.current ||
+        DEFAULT_MAP_COORDINATE;
 
       setLoading(true);
       try {
         const response = await api.get('/bookings/available', {
           params: {
-            latitude,
-            longitude,
+            latitude: searchCenter.latitude,
+            longitude: searchCenter.longitude,
             radius: 10.0,
           },
         });
@@ -94,17 +93,15 @@ const AvailableBookingsScreen = ({navigation}: any) => {
 
         const bookings = rawBookings
           .map((booking: any) => {
-            const pickupLatitude = Number(booking.pickupLatitude);
-            const pickupLongitude = Number(booking.pickupLongitude);
-            const dropLatitude = Number(booking.dropLatitude);
-            const dropLongitude = Number(booking.dropLongitude);
-
-            if (
-              !isValidCoordinate(pickupLatitude) ||
-              !isValidCoordinate(pickupLongitude) ||
-              !isValidCoordinate(dropLatitude) ||
-              !isValidCoordinate(dropLongitude)
-            ) {
+            const pickup = toMapCoordinate(
+              booking.pickupLatitude,
+              booking.pickupLongitude,
+            );
+            const drop = toMapCoordinate(
+              booking.dropLatitude,
+              booking.dropLongitude,
+            );
+            if (!pickup || !drop) {
               return null;
             }
 
@@ -115,13 +112,11 @@ const AvailableBookingsScreen = ({navigation}: any) => {
               status: booking.status?.toLowerCase() || 'bidding',
               pickupLocation: {
                 address: booking.pickupAddress || 'Pickup location',
-                latitude: pickupLatitude,
-                longitude: pickupLongitude,
+                ...pickup,
               },
               dropLocation: {
                 address: booking.dropAddress || 'Drop location',
-                latitude: dropLatitude,
-                longitude: dropLongitude,
+                ...drop,
               },
               description:
                 booking.errandDescription || booking.parcelDescription,
@@ -414,9 +409,8 @@ const AvailableBookingsScreen = ({navigation}: any) => {
   return (
     <View style={styles.container}>
       {/* Map Background */}
-      <MapView
+      <ReliableMapView
         ref={mapRef}
-        provider={PROVIDER_DEFAULT}
         style={styles.map}
         initialRegion={{
           latitude: currentBooking.pickupLocation.latitude,
@@ -424,13 +418,6 @@ const AvailableBookingsScreen = ({navigation}: any) => {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}>
-        {/* CartoDB Dark Matter tiles — no API key required */}
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-          maximumZ={19}
-          flipY={false}
-          zIndex={-1}
-        />
         <Polyline
           coordinates={[
             {
@@ -464,7 +451,7 @@ const AvailableBookingsScreen = ({navigation}: any) => {
             <MapPin size={20} color="white" />
           </View>
         </Marker>
-      </MapView>
+      </ReliableMapView>
 
       {/* Header Overlay */}
       <View style={[styles.headerOverlay, {paddingTop: insets.top + 8}]}>

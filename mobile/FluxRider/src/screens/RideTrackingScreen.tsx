@@ -11,7 +11,8 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import MapView, {Marker, PROVIDER_DEFAULT, Polyline, UrlTile} from 'react-native-maps';
+import MapView, {Marker, Polyline} from 'react-native-maps';
+import ReliableMapView from '../components/ReliableMapView';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import api from '../config/api';
 import {colors, normalizeVehicleId} from '../theme';
@@ -39,6 +40,10 @@ import {
   User,
   AlertCircle,
 } from 'lucide-react-native';
+import {
+  DEFAULT_MAP_COORDINATE,
+  toMapCoordinate,
+} from '../utils/mapCoordinates';
 
 interface Booking {
   id: number;
@@ -71,10 +76,7 @@ const RideTrackingScreen = () => {
   const [booking, setBooking] = useState<Booking | null>(
     params.booking || null,
   );
-  const [currentLocation, setCurrentLocation] = useState({
-    latitude: 28.6139,
-    longitude: 77.209,
-  });
+  const [currentLocation, setCurrentLocation] = useState(DEFAULT_MAP_COORDINATE);
   const [otp, setOtp] = useState('');
   const [rideStatus, setRideStatus] = useState<
     'ACCEPTED' | 'RIDER_EN_ROUTE' | 'RIDER_ARRIVED' | 'IN_PROGRESS' | 'COMPLETED'
@@ -83,15 +85,16 @@ const RideTrackingScreen = () => {
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
   const terminalHandled = useRef(false);
+  const lastFittedStatusRef = useRef<string | null>(null);
+  const lastRouteRequestRef = useRef(0);
+  const lastRouteStatusRef = useRef<string | null>(null);
 
-  const asCoordinate = (value: unknown, fallback: number) => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : fallback;
-  };
-  const hasValidCoordinate = (value: unknown) => {
-    const num = Number(value);
-    return Number.isFinite(num) && Math.abs(num) <= 180;
-  };
+  const stopLocationTracking = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      clearLocationWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  }, []);
 
   const fetchBookingDetails = useCallback(async () => {
     if (!resolvedBookingId) {
@@ -106,6 +109,7 @@ const RideTrackingScreen = () => {
         authoritativeStatus === 'NO_RIDERS_AVAILABLE' ||
         authoritativeStatus === 'COMPLETED'
       ) {
+        stopLocationTracking();
         if (!terminalHandled.current) {
           terminalHandled.current = true;
           Alert.alert(
@@ -138,7 +142,7 @@ const RideTrackingScreen = () => {
     } catch (error) {
       console.log('Error fetching booking:', error);
     }
-  }, [navigation, resolvedBookingId]);
+  }, [navigation, resolvedBookingId, stopLocationTracking]);
 
   const startLocationTracking = useCallback(async () => {
     if (watchIdRef.current !== null) {
@@ -185,10 +189,7 @@ const RideTrackingScreen = () => {
     const interval = setInterval(fetchBookingDetails, 30000);
     return () => {
       clearInterval(interval);
-      if (watchIdRef.current !== null) {
-        clearLocationWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+      stopLocationTracking();
     };
   }, [
     fetchBookingDetails,
@@ -196,6 +197,7 @@ const RideTrackingScreen = () => {
     params.booking,
     resolvedBookingId,
     startLocationTracking,
+    stopLocationTracking,
   ]);
 
   useEffect(() => {
@@ -217,30 +219,17 @@ const RideTrackingScreen = () => {
   }, [fetchBookingDetails, resolvedBookingId]);
 
   useEffect(() => {
-    if (booking && mapRef.current) {
+    if (booking && mapRef.current && lastFittedStatusRef.current !== rideStatus) {
+      const target =
+        rideStatus === 'ACCEPTED' ||
+        rideStatus === 'RIDER_EN_ROUTE' ||
+        rideStatus === 'RIDER_ARRIVED'
+          ? toMapCoordinate(booking.pickupLatitude, booking.pickupLongitude)
+          : toMapCoordinate(booking.dropLatitude, booking.dropLongitude);
+      if (!target) return;
       const coordinates = [
         currentLocation,
-        rideStatus === 'ACCEPTED' || rideStatus === 'RIDER_ARRIVED'
-          ? {
-              latitude: asCoordinate(
-                booking.pickupLatitude,
-                currentLocation.latitude,
-              ),
-              longitude: asCoordinate(
-                booking.pickupLongitude,
-                currentLocation.longitude,
-              ),
-            }
-          : {
-              latitude: asCoordinate(
-                booking.dropLatitude,
-                currentLocation.latitude,
-              ),
-              longitude: asCoordinate(
-                booking.dropLongitude,
-                currentLocation.longitude,
-              ),
-            },
+        target,
       ];
 
       mapRef.current.fitToCoordinates(coordinates, {
@@ -252,6 +241,7 @@ const RideTrackingScreen = () => {
         },
         animated: true,
       });
+      lastFittedStatusRef.current = rideStatus;
     }
   }, [booking, currentLocation, rideStatus, windowHeight]);
 
@@ -262,37 +252,28 @@ const RideTrackingScreen = () => {
     return rideStatus === 'ACCEPTED' ||
       rideStatus === 'RIDER_EN_ROUTE' ||
       rideStatus === 'RIDER_ARRIVED'
-      ? {
-          latitude: asCoordinate(booking.pickupLatitude, currentLocation.latitude),
-          longitude: asCoordinate(
-            booking.pickupLongitude,
-            currentLocation.longitude,
-          ),
-        }
-      : {
-          latitude: asCoordinate(booking.dropLatitude, currentLocation.latitude),
-          longitude: asCoordinate(booking.dropLongitude, currentLocation.longitude),
-        };
-  }, [booking, currentLocation, rideStatus]);
+      ? toMapCoordinate(booking.pickupLatitude, booking.pickupLongitude)
+      : toMapCoordinate(booking.dropLatitude, booking.dropLongitude);
+  }, [booking, rideStatus]);
 
   const canRenderDirections =
     !!destination &&
-    hasValidCoordinate(currentLocation.latitude) &&
-    hasValidCoordinate(currentLocation.longitude) &&
-    hasValidCoordinate(destination.latitude) &&
-    hasValidCoordinate(destination.longitude);
+    !!toMapCoordinate(currentLocation.latitude, currentLocation.longitude);
 
   useEffect(() => {
     if (!canRenderDirections || !destination) {
+      setRouteCoords([]);
       return;
     }
-
+    const now = Date.now();
+    const statusChanged = lastRouteStatusRef.current !== rideStatus;
+    if (!statusChanged && now - lastRouteRequestRef.current < 15_000) return;
+    lastRouteRequestRef.current = now;
+    lastRouteStatusRef.current = rideStatus;
     getDrivingRoute(currentLocation, destination).then(res => {
-      if (res && res.coordinates) {
-        setRouteCoords(res.coordinates);
-      }
+      setRouteCoords(res?.coordinates || []);
     });
-  }, [currentLocation, destination, canRenderDirections]);
+  }, [currentLocation, destination, canRenderDirections, rideStatus]);
 
   const handleOpenNavigation = async () => {
     const dest =
@@ -307,7 +288,7 @@ const RideTrackingScreen = () => {
             lng: booking?.pickupLongitude,
             label: booking?.pickupAddress,
           };
-    if (!dest.lat || !dest.lng) {
+    if (!toMapCoordinate(dest.lat, dest.lng)) {
       return;
     }
     if (rideStatus === 'ACCEPTED') {
@@ -357,6 +338,7 @@ const RideTrackingScreen = () => {
             await api.post(`/bookings/${resolvedBookingId}/cancel`, null, {
               params: {reason: 'Rider cancelled', byUser: false},
             });
+            stopLocationTracking();
             Alert.alert('Cancelled', 'Ride cancelled.', [
               {text: 'OK', onPress: () => (navigation as any).replace('Home')},
             ]);
@@ -425,6 +407,7 @@ const RideTrackingScreen = () => {
           try {
             setLoading(true);
             await api.post(`/bookings/${resolvedBookingId}/complete`);
+            stopLocationTracking();
             Alert.alert('Success', 'Ride completed successfully!', [
               {text: 'OK', onPress: () => (navigation as any).replace('Home')},
             ]);
@@ -459,9 +442,8 @@ const RideTrackingScreen = () => {
 
   return (
     <View style={styles.container}>
-      <MapView
+      <ReliableMapView
         ref={mapRef}
-        provider={PROVIDER_DEFAULT}
         style={styles.map}
         initialRegion={{
           ...currentLocation,
@@ -469,12 +451,6 @@ const RideTrackingScreen = () => {
           longitudeDelta: 0.05,
         }}
         showsMyLocationButton={false}>
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-          maximumZ={19}
-          flipY={false}
-          zIndex={-1}
-        />
         <ApproachingVehicleMarker
           coordinate={currentLocation}
           vehicleId={normalizeVehicleId(
@@ -487,14 +463,10 @@ const RideTrackingScreen = () => {
           rideStatus === 'RIDER_ARRIVED') && (
           <UserLocationMarker
             coordinate={{
-              latitude: asCoordinate(
+              ...(toMapCoordinate(
                 booking.pickupLatitude,
-                currentLocation.latitude,
-              ),
-              longitude: asCoordinate(
                 booking.pickupLongitude,
-                currentLocation.longitude,
-              ),
+              ) || currentLocation),
             }}
           />
         )}
@@ -502,14 +474,10 @@ const RideTrackingScreen = () => {
         {rideStatus === 'IN_PROGRESS' && (
           <Marker
             coordinate={{
-              latitude: asCoordinate(
+              ...(toMapCoordinate(
                 booking.dropLatitude,
-                currentLocation.latitude,
-              ),
-              longitude: asCoordinate(
                 booking.dropLongitude,
-                currentLocation.longitude,
-              ),
+              ) || currentLocation),
             }}
             title="Drop Location">
             <View style={styles.dropMarker}>
@@ -525,7 +493,7 @@ const RideTrackingScreen = () => {
             strokeColor={colors.accent}
           />
         )}
-      </MapView>
+      </ReliableMapView>
 
       <ScrollView
         style={[styles.bottomSheet, {maxHeight: windowHeight * 0.64}]}

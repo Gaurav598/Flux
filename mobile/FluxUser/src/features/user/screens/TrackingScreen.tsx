@@ -14,13 +14,18 @@ import {
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import MapView, {
   Marker,
-  PROVIDER_DEFAULT,
   Polyline,
-  UrlTile,
 } from 'react-native-maps';
+import ReliableMapView from '../../../components/ReliableMapView';
 import {getDrivingRoute} from '../../../services/directionsService';
 import {getRideDetails, cancelRide} from '../../../services/rideService';
 import api from '../../../config/api';
+import {subscribeToBookingRealtime} from '../../../services/realtimeService';
+import {
+  DEFAULT_MAP_COORDINATE,
+  MapCoordinate,
+  toMapCoordinate,
+} from '../../../utils/mapCoordinates';
 import {
   ArrowLeft,
   Phone,
@@ -67,11 +72,9 @@ export default function TrackingScreen() {
     'pickup' | 'enroute' | 'arrived' | 'completed'
   >('pickup');
   const [booking, setBooking] = useState<any>(null);
-  const [etaSeconds, setEtaSeconds] = useState(
-    Number.isFinite(Number(rider?.etaMinutes))
-      ? Number(rider.etaMinutes) * 60
-      : 5 * 60,
-  );
+  const [estimatedArrivalMinutes, setEstimatedArrivalMinutes] = useState<
+    number | null
+  >(null);
   const [rideSeconds, setRideSeconds] = useState(0);
   const [riderLocation, setRiderLocation] = useState<{
     latitude: number;
@@ -81,15 +84,24 @@ export default function TrackingScreen() {
   const [otp, setOtp] = useState<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
+  const [locationRecordedAt, setLocationRecordedAt] = useState<string | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [freshnessClock, setFreshnessClock] = useState(Date.now());
+  const latestLocationAtRef = useRef(0);
+  const lastFittedPhaseRef = useRef<string | null>(null);
+  const lastRouteRequestRef = useRef(0);
 
-  const asCoordinate = (value: unknown) => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : null;
-  };
-  const hasValidCoordinate = (value: unknown) => {
-    const num = Number(value);
-    return Number.isFinite(num) && Math.abs(num) <= 180;
-  };
+  const applyRiderLocation = useCallback((payload: any) => {
+    const coordinate = toMapCoordinate(payload?.latitude, payload?.longitude);
+    const recordedAt = String(payload?.recordedAt || '');
+    const timestamp = Date.parse(recordedAt);
+    if (!coordinate || !Number.isFinite(timestamp) || timestamp <= latestLocationAtRef.current) {
+      return;
+    }
+    latestLocationAtRef.current = timestamp;
+    setRiderLocation(coordinate);
+    setLocationRecordedAt(recordedAt);
+  }, []);
 
   const loadRideDetails = useCallback(async () => {
     if (!rideId) {
@@ -113,31 +125,30 @@ export default function TrackingScreen() {
         setOtp(rideDetails.verificationOtp);
       }
 
-      const riderLat = asCoordinate(rideDetails?.rider?.currentLatitude);
-      const riderLng = asCoordinate(rideDetails?.rider?.currentLongitude);
-      if (riderLat !== null && riderLng !== null) {
-        setRiderLocation({
-          latitude: riderLat,
-          longitude: riderLng,
-        });
+      const current = toMapCoordinate(
+        rideDetails?.rider?.currentLatitude,
+        rideDetails?.rider?.currentLongitude,
+      );
+      const currentRecordedAt = rideDetails?.rider?.lastLocationUpdate;
+      if (current && currentRecordedAt) {
+        applyRiderLocation({...current, recordedAt: currentRecordedAt});
       } else {
-        const pickupLat = asCoordinate(rideDetails?.pickupLatitude);
-        const pickupLng = asCoordinate(rideDetails?.pickupLongitude);
-        if (pickupLat !== null && pickupLng !== null) {
-          setRiderLocation({
-            latitude: pickupLat,
-            longitude: pickupLng,
-          });
+        const pickup = toMapCoordinate(
+          rideDetails?.pickupLatitude,
+          rideDetails?.pickupLongitude,
+        );
+        if (pickup) {
+          setRiderLocation(currentLocation => currentLocation || pickup);
         }
       }
     } catch (error) {
       console.error('Error loading ride details:', error);
     }
-  }, [rideId]);
+  }, [applyRiderLocation, rideId]);
 
   useEffect(() => {
     loadRideDetails();
-    const interval = setInterval(loadRideDetails, 7000);
+    const interval = setInterval(loadRideDetails, 30_000);
 
     return () => {
       clearInterval(interval);
@@ -145,36 +156,44 @@ export default function TrackingScreen() {
   }, [loadRideDetails]);
 
   useEffect(() => {
-    const riderId = booking?.rider?.id;
-    if (!riderId || phase === 'completed') {
+    if (!rideId || phase === 'completed') {
       return;
     }
 
-    const pollRiderLocation = async () => {
+    const reconcileRiderLocation = async () => {
       try {
-        const response = await api.get(`/rider/${riderId}/location`);
-        const lat = asCoordinate(response?.data?.latitude);
-        const lng = asCoordinate(response?.data?.longitude);
-        if (lat !== null && lng !== null) {
-          setRiderLocation({latitude: lat, longitude: lng});
-        }
+        const response = await api.get(`/bookings/${rideId}/rider-location`);
+        applyRiderLocation(response?.data);
       } catch {
-        // Ignore transient polling failures.
+        // The booking refresh remains the fallback during transient failures.
       }
     };
 
-    pollRiderLocation();
-    const interval = setInterval(pollRiderLocation, 7000);
-    return () => clearInterval(interval);
-  }, [booking?.rider?.id, phase]);
-
-  useEffect(() => {
-    if (phase !== 'pickup' || etaSeconds <= 0) {
-      return;
+    void reconcileRiderLocation();
+    const interval = setInterval(reconcileRiderLocation, 30_000);
+    let unsubscribe: (() => void) | undefined;
+    let disposed = false;
+    const numericRideId = Number(rideId);
+    if (Number.isFinite(numericRideId)) {
+      void subscribeToBookingRealtime(numericRideId, {
+        onConnected: () => {
+          void loadRideDetails();
+          void reconcileRiderLocation();
+        },
+        onStatus: () => void loadRideDetails(),
+        onLocation: applyRiderLocation,
+        onConnectionChange: setRealtimeConnected,
+      }).then(cleanup => {
+        if (disposed) cleanup();
+        else unsubscribe = cleanup;
+      });
     }
-    const interval = setInterval(() => setEtaSeconds(s => s - 1), 1000);
-    return () => clearInterval(interval);
-  }, [phase, etaSeconds]);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+      unsubscribe?.();
+    };
+  }, [applyRiderLocation, loadRideDetails, phase, rideId]);
 
   useEffect(() => {
     if (phase !== 'enroute') {
@@ -183,6 +202,11 @@ export default function TrackingScreen() {
     const interval = setInterval(() => setRideSeconds(s => s + 1), 1000);
     return () => clearInterval(interval);
   }, [phase]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setFreshnessClock(Date.now()), 15_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     Animated.loop(
@@ -205,7 +229,14 @@ export default function TrackingScreen() {
     `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(
       secs % 60,
     ).padStart(2, '0')}`;
-  const etaDisplay = `${Math.ceil(etaSeconds / 60)} min`;
+  const locationAgeSeconds = locationRecordedAt
+    ? Math.max(0, (freshnessClock - Date.parse(locationRecordedAt)) / 1000)
+    : Number.POSITIVE_INFINITY;
+  const locationIsFresh = locationAgeSeconds <= 30;
+  const etaDisplay =
+    locationIsFresh && estimatedArrivalMinutes !== null
+      ? `${Math.max(1, Math.ceil(estimatedArrivalMinutes))} min`
+      : 'Unavailable';
 
   const riderProfile = {
     name:
@@ -234,14 +265,11 @@ export default function TrackingScreen() {
       0,
   };
 
-  const pickupCoords = {
-    latitude: asCoordinate(booking?.pickupLatitude) ?? 28.6139,
-    longitude: asCoordinate(booking?.pickupLongitude) ?? 77.209,
-  };
-  const dropCoords = {
-    latitude: asCoordinate(booking?.dropLatitude) ?? pickupCoords.latitude,
-    longitude: asCoordinate(booking?.dropLongitude) ?? pickupCoords.longitude,
-  };
+  const pickupCoords =
+    toMapCoordinate(booking?.pickupLatitude, booking?.pickupLongitude) ||
+    DEFAULT_MAP_COORDINATE;
+  const dropCoords =
+    toMapCoordinate(booking?.dropLatitude, booking?.dropLongitude) || pickupCoords;
   const mapCenter = riderLocation || pickupCoords;
   const vehicleId = normalizeVehicleId(
     booking?.rider?.vehicleType ||
@@ -251,10 +279,8 @@ export default function TrackingScreen() {
   );
   const destination = phase === 'pickup' || phase === 'arrived' ? pickupCoords : dropCoords;
   const canRenderDirections =
-    hasValidCoordinate(mapCenter.latitude) &&
-    hasValidCoordinate(mapCenter.longitude) &&
-    hasValidCoordinate(destination.latitude) &&
-    hasValidCoordinate(destination.longitude);
+    !!toMapCoordinate(mapCenter.latitude, mapCenter.longitude) &&
+    !!toMapCoordinate(destination.latitude, destination.longitude);
   const pickupAddress = booking?.pickupAddress || from || 'Pickup location';
   const dropAddress = booking?.dropAddress || to || 'Drop location';
   const maxFareValue = Number(maxFare) || riderProfile.bidAmount;
@@ -263,10 +289,10 @@ export default function TrackingScreen() {
     if (!mapRef.current) {
       return;
     }
-    const points = [mapCenter, destination].filter(
-      point =>
-        hasValidCoordinate(point?.latitude) && hasValidCoordinate(point?.longitude),
-    ) as Array<{latitude: number; longitude: number}>;
+    if (lastFittedPhaseRef.current === phase) return;
+    const points = [mapCenter, destination].filter(point =>
+      toMapCoordinate(point?.latitude, point?.longitude),
+    ) as MapCoordinate[];
 
     if (points.length < 2) {
       return;
@@ -276,17 +302,19 @@ export default function TrackingScreen() {
       edgePadding: {top: 120, right: 56, bottom: 340, left: 56},
       animated: true,
     });
-  }, [mapCenter, destination]);
+    lastFittedPhaseRef.current = phase;
+  }, [destination, mapCenter, phase]);
 
   useEffect(() => {
-    if (canRenderDirections && mapCenter && destination) {
-      getDrivingRoute(mapCenter, destination).then(res => {
-        if (res && res.coordinates) {
-          setRouteCoords(res.coordinates);
-        }
-      });
-    }
-  }, [mapCenter, destination, canRenderDirections]);
+    if (!canRenderDirections) return;
+    const now = Date.now();
+    if (now - lastRouteRequestRef.current < 15_000) return;
+    lastRouteRequestRef.current = now;
+    getDrivingRoute(mapCenter, destination).then(res => {
+      setRouteCoords(res?.coordinates || []);
+      setEstimatedArrivalMinutes(locationIsFresh ? res?.durationMin ?? null : null);
+    });
+  }, [mapCenter, destination, canRenderDirections, locationIsFresh]);
 
   const handleCall = () => {
     if (riderProfile.phone) {
@@ -331,9 +359,8 @@ export default function TrackingScreen() {
     <View style={styles.container}>
       {/* Map Background */}
       <View style={styles.mapContainer}>
-        <MapView
+        <ReliableMapView
           ref={mapRef}
-          provider={PROVIDER_DEFAULT}
           style={StyleSheet.absoluteFill}
           initialRegion={{
             latitude: mapCenter.latitude,
@@ -345,12 +372,6 @@ export default function TrackingScreen() {
           showsUserLocation={false}
           showsMyLocationButton={false}
           toolbarEnabled={false}>
-          <UrlTile
-            urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-            maximumZ={19}
-            flipY={false}
-            zIndex={-1}
-          />
           <ApproachingVehicleMarker
             coordinate={mapCenter}
             vehicleId={vehicleId}
@@ -371,7 +392,7 @@ export default function TrackingScreen() {
               strokeColor={colors.accent}
             />
           )}
-        </MapView>
+        </ReliableMapView>
       </View>
 
       {/* Header Overlay */}
@@ -395,6 +416,13 @@ export default function TrackingScreen() {
               : phase === 'enroute'
               ? 'En Route'
               : 'Arrived'}
+          </Text>
+          <Text style={styles.statusText}>
+            {realtimeConnected
+              ? locationIsFresh
+                ? ' · Live'
+                : ' · Location stale'
+              : ' · Reconnecting'}
           </Text>
         </View>
       </SafeAreaView>

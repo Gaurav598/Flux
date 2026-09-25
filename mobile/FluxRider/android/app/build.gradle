@@ -75,10 +75,15 @@ def enableProguardInReleaseBuilds = false
 def jscFlavor = 'org.webkit:android-jsc:+'
 
 def envProperties = new Properties()
-def envFile = rootProject.file('../../../.env')
+// Android's rootProject is mobile/FluxRider/android; the app environment is one level up.
+def envFile = rootProject.file('../.env')
 if (envFile.exists()) {
     envProperties.load(new FileInputStream(envFile))
 }
+def googleMapsApiKey = System.getenv('GOOGLE_MAPS_API_KEY') ?:
+        project.findProperty('GOOGLE_MAPS_API_KEY') ?:
+        envProperties['GOOGLE_MAPS_API_KEY'] ?:
+        ''
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -92,7 +97,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        manifestPlaceholders = [GOOGLE_PLACES_API_KEY: envProperties['GOOGLE_PLACES_API_KEY'] ?: ""]
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
     }
     signingConfigs {
         debug {

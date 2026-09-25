@@ -19,6 +19,7 @@ export const subscribeToBookingRealtime = async (
 
   const seenEventIds = new Set<string>();
   let latestVersion = -1;
+  let latestLocationTimestamp = 0;
   const deliver = (message: IMessage, handler?: (event: any) => void) => {
     try {
       const event = JSON.parse(message.body);
@@ -56,7 +57,14 @@ export const subscribeToBookingRealtime = async (
       deliver(message, handlers.onStatus),
     );
     client.subscribe(`/topic/booking/${bookingId}/location`, message =>
-      deliver(message, handlers.onLocation),
+      deliver(message, event => {
+        const timestamp = Date.parse(String(event.recordedAt || ''));
+        if (!Number.isFinite(timestamp) || timestamp <= latestLocationTimestamp) {
+          return;
+        }
+        latestLocationTimestamp = timestamp;
+        handlers.onLocation?.(event);
+      }),
     );
     handlers.onConnected?.();
   };

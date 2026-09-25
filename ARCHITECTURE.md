@@ -73,6 +73,12 @@ The simple broker uses 10-second heartbeats. Mobile clients reconnect exponentia
 
 The rider app requests foreground permission and uses a battery-aware watch (30-second interval / 50-metre distance filter during an active ride). The backend validates coordinate ranges and limits writes to one every two seconds. Active-booking location publishes after commit. A location is considered fresh for UI/operations when not older than 30 seconds.
 
+### Native maps and routing
+
+Both mobile clients use `react-native-maps` behind a local `ReliableMapView` boundary. Android uses Google Maps SDK with a per-application manifest key injected from the mobile app's environment; iOS uses Apple Maps through the native default provider. All screen, marker, route, and device-location inputs pass through the same latitude/longitude validation helpers. Invalid regions receive a bounded default viewport and invalid marker/route points are not mounted.
+
+LocationIQ supplies optional geocoding and driving geometry over a configurable HTTPS base URL. Map and marker rendering do not depend on route success. Customer ride maps consume participant-scoped REST location state and authenticated STOMP events with timestamp ordering and reconnect reconciliation. Rider GPS publishing is foreground-only and stops at a terminal ride state. See `MAP_SETUP_AND_TESTING.md` for native credential and verification details.
+
 ## Payments and earnings
 
 Flux uses a flat rider subscription model. Completed ride fare is fully attributed to rider earnings; there is no ride commission. Stripe is disabled in the present implementation. An explicitly configured free/demo tier can create an idempotent server-side subscription record. Client confirmation cannot create a missing subscription. No live payment readiness is claimed.

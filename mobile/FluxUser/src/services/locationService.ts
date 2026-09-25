@@ -2,6 +2,11 @@ import Geolocation from 'react-native-geolocation-service';
 import {Alert, Linking, PermissionsAndroid, Platform} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {LOCATION_IQ_API_KEY} from '../config/env';
+import {
+  isPlausibleLocationUpdate,
+  toMapCoordinate,
+  type MapCoordinate,
+} from '../utils/mapCoordinates';
 export interface Location {
   latitude: number;
   longitude: number;
@@ -14,6 +19,7 @@ export interface LocationWithAddress extends Location {
 
 const LAST_LOCATION_KEY = 'flux_last_known_location';
 const GEO_TIMEOUT_MS = 10000;
+const MAX_CACHED_LOCATION_AGE_MS = 30 * 60 * 1000;
 
 type CachedLocation = Location & {timestamp: number};
 
@@ -21,11 +27,13 @@ const toLocation = (coords: {
   latitude: number;
   longitude: number;
   heading?: number | null;
-}): Location => ({
-  latitude: coords.latitude,
-  longitude: coords.longitude,
-  heading: coords.heading ?? undefined,
-});
+}): Location => {
+  const coordinate = toMapCoordinate(coords.latitude, coords.longitude);
+  if (!coordinate) {
+    throw new Error('Location provider returned invalid coordinates');
+  }
+  return {...coordinate, heading: coords.heading ?? undefined};
+};
 
 const cacheLocation = async (location: Location) => {
   try {
@@ -49,13 +57,18 @@ const getCachedLocation = async (): Promise<Location | null> => {
     if (
       !parsed ||
       typeof parsed.latitude !== 'number' ||
-      typeof parsed.longitude !== 'number'
+      typeof parsed.longitude !== 'number' ||
+      !Number.isFinite(parsed.timestamp) ||
+      Date.now() - parsed.timestamp > MAX_CACHED_LOCATION_AGE_MS
     ) {
       return null;
     }
+    const coordinate = toMapCoordinate(parsed.latitude, parsed.longitude);
+    if (!coordinate) {
+      return null;
+    }
     return {
-      latitude: parsed.latitude,
-      longitude: parsed.longitude,
+      ...coordinate,
       heading: parsed.heading,
     };
   } catch {
@@ -109,6 +122,16 @@ const getPositionOnce = (options: {
 export const requestLocationPermission = async (): Promise<boolean> => {
   if (Platform.OS === 'ios') {
     const auth = await Geolocation.requestAuthorization('whenInUse');
+    if (auth === 'denied' || auth === 'restricted') {
+      Alert.alert(
+        'Enable Location Access',
+        'Flux needs location access for pickup and live trip maps. You can enable it in Settings.',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {text: 'Open Settings', onPress: () => Linking.openSettings()},
+        ],
+      );
+    }
     return auth === 'granted';
   }
 
@@ -202,13 +225,25 @@ export const watchLocation = (
   onLocationChange: (location: Location) => void,
   onError?: (error: any) => void,
 ): number => {
+  let previous: {coordinate: MapCoordinate; timestamp: number} | null = null;
   return Geolocation.watchPosition(
     position => {
-      const location = toLocation({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        heading: position.coords.heading,
-      });
+      let location: Location;
+      try {
+        location = toLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          heading: position.coords.heading,
+        });
+      } catch (error) {
+        onError?.(error);
+        return;
+      }
+      const timestamp = Number(position.timestamp) || Date.now();
+      if (!isPlausibleLocationUpdate(previous, location, timestamp)) {
+        return;
+      }
+      previous = {coordinate: location, timestamp};
       cacheLocation(location).catch(() => undefined);
       onLocationChange(location);
     },
@@ -255,6 +290,13 @@ export const reverseGeocode = async (
   latitude: number,
   longitude: number,
 ): Promise<string> => {
+  const coordinate = toMapCoordinate(latitude, longitude);
+  if (!coordinate) {
+    return 'Location unavailable';
+  }
+  if (!LOCATION_IQ_API_KEY) {
+    return `${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`;
+  }
   const controller =
     typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timeout = setTimeout(() => {
@@ -263,7 +305,7 @@ export const reverseGeocode = async (
 
   try {
     const response = await fetch(
-      `https://us1.locationiq.com/v1/reverse.php?key=${LOCATION_IQ_API_KEY}&lat=${latitude}&lon=${longitude}&format=json`,
+      `https://us1.locationiq.com/v1/reverse.php?key=${LOCATION_IQ_API_KEY}&lat=${coordinate.latitude}&lon=${coordinate.longitude}&format=json`,
       controller ? {signal: controller.signal} : undefined,
     );
     const data = await response.json();
@@ -284,5 +326,5 @@ export const reverseGeocode = async (
   } finally {
     clearTimeout(timeout);
   }
-  return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+  return `${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`;
 };

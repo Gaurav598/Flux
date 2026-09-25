@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Image, StyleSheet, View} from 'react-native';
 import {Marker, MarkerAnimated, AnimatedRegion} from 'react-native-maps';
 import {colors, getMapVehicle, userMarkerImage} from '../theme';
+import {DEFAULT_MAP_COORDINATE, toMapCoordinate} from '../utils/mapCoordinates';
 
 type Coord = {latitude: number; longitude: number};
 
@@ -46,23 +47,28 @@ export function ApproachingVehicleMarker({
   zIndex?: number;
   duration?: number;
 }) {
+  const validatedCoordinate = toMapCoordinate(
+    coordinate?.latitude,
+    coordinate?.longitude,
+  );
+  const safeCoordinate = validatedCoordinate || DEFAULT_MAP_COORDINATE;
   const {source, baseAngle} = getMapVehicle(vehicleId);
   const region = useRef(
     new AnimatedRegion({
-      latitude: coordinate.latitude,
-      longitude: coordinate.longitude,
+      latitude: safeCoordinate.latitude,
+      longitude: safeCoordinate.longitude,
       latitudeDelta: 0,
       longitudeDelta: 0,
     }),
   ).current;
-  const prev = useRef<Coord>(coordinate);
+  const prev = useRef<Coord>(safeCoordinate);
   const [rotation, setRotation] = useState(0);
   const [tracks, setTracks] = useState(true);
 
   useEffect(() => {
     const next = {
-      latitude: coordinate.latitude,
-      longitude: coordinate.longitude,
+      latitude: safeCoordinate.latitude,
+      longitude: safeCoordinate.longitude,
     };
 
     const moved =
@@ -89,7 +95,11 @@ export function ApproachingVehicleMarker({
     setTracks(true);
     const t = setTimeout(() => setTracks(false), duration + 400);
     return () => clearTimeout(t);
-  }, [coordinate.latitude, coordinate.longitude, region, baseAngle, duration]);
+  }, [safeCoordinate.latitude, safeCoordinate.longitude, region, baseAngle, duration]);
+
+  if (!validatedCoordinate) {
+    return null;
+  }
 
   return (
     <MarkerAnimated
@@ -128,6 +138,10 @@ export function UserLocationMarker({
   size?: number;
   zIndex?: number;
 }) {
+  const validatedCoordinate = toMapCoordinate(
+    coordinate?.latitude,
+    coordinate?.longitude,
+  );
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -156,9 +170,13 @@ export function UserLocationMarker({
     outputRange: [0.35, 0],
   });
 
+  if (!validatedCoordinate) {
+    return null;
+  }
+
   return (
     <Marker
-      coordinate={coordinate}
+      coordinate={validatedCoordinate}
       anchor={{x: 0.5, y: 0.5}}
       flat
       tracksViewChanges={false}

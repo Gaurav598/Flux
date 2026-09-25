@@ -50,4 +50,19 @@ describe('booking realtime connection', () => {
     cleanup();
     expect(mockClient.deactivate).toHaveBeenCalledTimes(1);
   });
+
+  it('drops stale and invalid rider location events', async () => {
+    const onLocation = jest.fn();
+    await subscribeToBookingRealtime(42, {onLocation});
+    mockClient.onConnect();
+    const locationHandler = mockClient.subscribe.mock.calls.find(
+      ([destination]: [string]) => destination.endsWith('/location'),
+    )[1];
+
+    locationHandler({body: JSON.stringify({recordedAt: '2026-01-01T00:00:02Z'})});
+    locationHandler({body: JSON.stringify({recordedAt: '2026-01-01T00:00:01Z'})});
+    locationHandler({body: JSON.stringify({recordedAt: 'not-a-date'})});
+
+    expect(onLocation).toHaveBeenCalledTimes(1);
+  });
 });

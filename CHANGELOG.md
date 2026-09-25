@@ -1,5 +1,17 @@
 # Changelog
 
+## Map reliability — 25 September 2026
+
+- Repaired per-application Android Maps SDK key injection and documented package/signing restrictions; retained credential-free Apple Maps on iOS.
+- Added shared safe map wrappers and strict coordinate/region/route validation to both React Native apps.
+- Removed ineffective Carto overlays hidden beneath native base maps and removed unjustified background-location permission.
+- Added non-empty iOS location permission descriptions and denied/restricted-location recovery.
+- Made routing optional, configurable, HTTPS-safe, throttled, and independent from map/marker rendering.
+- Replaced fabricated customer ETA with fresh provider-derived duration or an unavailable state.
+- Connected customer rider tracking to participant-scoped REST plus authenticated STOMP, with timestamp ordering and reconnect reconciliation.
+- Filtered impossible GPS jumps and stopped rider location watches at cancellation/completion/terminal state.
+- Prevented continuous camera refitting from overriding map gestures and added focused coordinate/realtime regression tests.
+
 ## Release stabilization baseline — 24 September 2026 (`7ab4398`)
 
 This historical section describes the committed stabilization diff from baseline `888474f`. It is retained for context and is not attributed to the engineering-upgrade continuation below.
