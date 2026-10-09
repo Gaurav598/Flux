@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +30,7 @@ import {
 import {ChevronLeft} from 'lucide-react-native';
 import {getFCMToken} from '../../../services/notificationService';
 import {colors} from '../../../theme';
+import {openPrivacyPolicy} from '../../../utils/legalLinks';
 
 const LoginScreen = () => {
   const [phone, setPhone] = useState('');
@@ -167,7 +169,9 @@ const LoginScreen = () => {
       <KeyboardAvoidingView
         style={{flex: 1}}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled">
           {otpSent && (
             <TouchableOpacity
               onPress={() => {
@@ -265,7 +269,14 @@ const LoginScreen = () => {
               </TouchableOpacity>
             </>
           )}
-        </View>
+          <TouchableOpacity
+            onPress={openPrivacyPolicy}
+            accessibilityRole="link"
+            accessibilityLabel="Open Privacy Policy"
+            style={styles.privacyLink}>
+            <Text style={styles.privacyLinkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -274,7 +285,7 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.bg},
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
     paddingBottom: 40,
@@ -337,6 +348,14 @@ const styles = StyleSheet.create({
   resendButton: {alignItems: 'center', marginTop: 24},
   resendText: {fontSize: 14, color: colors.textSub},
   resendLink: {color: colors.accent, fontWeight: '600'},
+  privacyLink: {
+    alignSelf: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 16,
+  },
+  privacyLinkText: {fontSize: 14, color: colors.textSub, textDecorationLine: 'underline'},
 });
 
 export default LoginScreen;

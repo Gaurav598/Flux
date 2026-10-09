@@ -10,7 +10,6 @@ import {
   Modal,
   useWindowDimensions,
   TextInput,
-  Linking,
   Image,
 } from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
@@ -32,6 +31,7 @@ import {useNavigation} from '@react-navigation/native';
 import api from '../config/api';
 import {colors, getVehicleImage, normalizeVehicleId} from '../theme';
 import CardGradient from '../components/CardGradient';
+import {openPrivacyPolicy, openSupportEmail} from '../utils/legalLinks';
 
 const RIDER_VEHICLE_TYPES = [
   {id: 'bike', label: 'Bike', desc: 'Two-wheeler rides'},
@@ -128,25 +128,31 @@ const ProfileScreen = () => {
       icon: Bike,
       label: 'Vehicle & KYC Documents',
       color: colors.accent,
-      screen: 'Documents',
+      onPress: () => navigation.navigate('Documents'),
     },
     {
       icon: CreditCard,
       label: 'Earnings & Payouts',
       color: colors.success,
-      screen: 'Earnings',
+      onPress: () => navigation.navigate('Earnings'),
     },
     {
       icon: Bell,
       label: 'Notifications',
       color: colors.warning,
-      screen: 'Notifications',
+      onPress: () => navigation.navigate('Notifications'),
+    },
+    {
+      icon: ShieldCheck,
+      label: 'Privacy Policy',
+      color: colors.success,
+      onPress: openPrivacyPolicy,
     },
     {
       icon: HelpCircle,
       label: 'Help & Support',
       color: colors.info,
-      screen: null,
+      onPress: () => openSupportEmail('Flux Rider Support'),
     },
   ];
 
@@ -207,24 +213,18 @@ const ProfileScreen = () => {
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Account Settings</Text>
 
-          {menuItems.map((item, index) => (
+          {menuItems.map(item => (
             <TouchableOpacity
-              key={index}
+              key={item.label}
               activeOpacity={0.7}
-              onPress={async () => {
-                if (item.screen) {
-                  navigation.navigate(item.screen);
-                  return;
-                }
-                const mail =
-                  'mailto:support@flux.app?subject=Flux Rider Support';
-                const canOpen = await Linking.canOpenURL(mail);
-                if (canOpen) {
-                  await Linking.openURL(mail);
-                } else {
-                  Alert.alert('Support', 'Email support@flux.app');
-                }
-              }}
+              onPress={item.onPress}
+              accessibilityRole={item.label === 'Privacy Policy' ? 'link' : 'button'}
+              accessibilityLabel={item.label}
+              accessibilityHint={
+                item.label === 'Privacy Policy'
+                  ? 'Opens the published Flux privacy policy in your browser'
+                  : undefined
+              }
               style={styles.menuItem}>
               <CardGradient radius={18} />
               <View

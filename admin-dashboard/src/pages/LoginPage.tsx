@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { loginAdmin, isAuthenticated } from '../lib/api';
 import { Car, Lock, User, AlertCircle, Loader2, Shield } from 'lucide-react';
 
+const PRIVACY_POLICY_URL = 'https://gaurav598.github.io/PrivacyPolicy/';
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -143,6 +145,16 @@ export default function LoginPage() {
 
         <p className="text-center text-zinc-700 text-xs mt-6">
           Flux Ride Platform · Admin Dashboard
+        </p>
+        <p className="text-center text-xs mt-3">
+          <a
+            href={PRIVACY_POLICY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-400 hover:text-white underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+          >
+            Privacy Policy
+          </a>
         </p>
       </div>
     </div>

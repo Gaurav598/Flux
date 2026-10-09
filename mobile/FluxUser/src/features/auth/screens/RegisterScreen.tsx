@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Image,
 } from 'react-native';
@@ -21,6 +22,7 @@ import api from '../../../config/api';
 import {USER_PROFILE_KEY} from '../../../constants/storageKeys';
 import {User, Camera} from 'lucide-react-native';
 import {colors} from '../../../theme';
+import {openPrivacyPolicy} from '../../../utils/legalLinks';
 
 const RegisterScreen = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -120,7 +122,9 @@ const RegisterScreen = () => {
       <KeyboardAvoidingView
         style={{flex: 1}}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Complete Profile</Text>
           <Text style={styles.subtitle}>
             Just a few details to get you started
@@ -173,7 +177,14 @@ const RegisterScreen = () => {
               </Text>
             )}
           </TouchableOpacity>
-        </View>
+          <TouchableOpacity
+            onPress={openPrivacyPolicy}
+            accessibilityRole="link"
+            accessibilityLabel="Open Privacy Policy"
+            style={styles.privacyLink}>
+            <Text style={styles.privacyLinkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -181,7 +192,7 @@ const RegisterScreen = () => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.bg},
-  content: {flex: 1, paddingHorizontal: 28, justifyContent: 'center'},
+  content: {flexGrow: 1, paddingHorizontal: 28, justifyContent: 'center'},
   title: {
     fontSize: 32,
     fontWeight: '900',
@@ -281,6 +292,14 @@ const styles = StyleSheet.create({
     color: colors.onAccent,
     letterSpacing: 1,
   },
+  privacyLink: {
+    alignSelf: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 16,
+  },
+  privacyLinkText: {fontSize: 14, color: colors.textSub, textDecorationLine: 'underline'},
 });
 
 export default RegisterScreen;

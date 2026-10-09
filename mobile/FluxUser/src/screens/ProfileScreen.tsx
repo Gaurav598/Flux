@@ -7,7 +7,6 @@ import {
   Alert,
   SafeAreaView,
   Image,
-  Linking,
 } from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
 import {RootState, AppDispatch} from '../store';
@@ -20,10 +19,12 @@ import {
   LogOut,
   ChevronRight,
   Settings,
+  ShieldCheck,
 } from 'lucide-react-native';
 import {useNavigation} from '@react-navigation/native';
 import {colors} from '../theme';
 import CardGradient from '../components/CardGradient';
+import {openPrivacyPolicy, openSupportEmail} from '../utils/legalLinks';
 
 const ProfileScreen = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -68,18 +69,16 @@ const ProfileScreen = () => {
         ),
     },
     {
+      icon: ShieldCheck,
+      label: 'Privacy Policy',
+      color: colors.success,
+      onPress: openPrivacyPolicy,
+    },
+    {
       icon: HelpCircle,
       label: 'Help & Support',
       color: '#8B5CF6',
-      onPress: async () => {
-        const mail = 'mailto:support@flux.app?subject=Flux Support Request';
-        const canOpen = await Linking.canOpenURL(mail);
-        if (canOpen) {
-          await Linking.openURL(mail);
-        } else {
-          Alert.alert('Support', 'Email support@flux.app');
-        }
-      },
+      onPress: () => openSupportEmail('Flux Support Request'),
     },
   ];
 
@@ -148,11 +147,18 @@ const ProfileScreen = () => {
           </Text>
 
           <View className="space-y-4">
-            {menuItems.map((item, index) => (
+            {menuItems.map(item => (
               <TouchableOpacity
-                key={index}
+                key={item.label}
                 activeOpacity={0.7}
                 onPress={item.onPress}
+                accessibilityRole={item.label === 'Privacy Policy' ? 'link' : 'button'}
+                accessibilityLabel={item.label}
+                accessibilityHint={
+                  item.label === 'Privacy Policy'
+                    ? 'Opens the published Flux privacy policy in your browser'
+                    : undefined
+                }
                 className="flex-row items-center p-5 rounded-3xl shadow-sm mb-4 overflow-hidden"
                 style={{
                   backgroundColor: 'transparent',
